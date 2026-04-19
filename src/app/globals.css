@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0f0e0c;
+  --foreground: #f5f0e8;
+  --card: #1a1814;
+  --card-border: rgba(212, 175, 55, 0.12);
+  --muted: #9c8f7e;
+  --accent: #d4af37;
+  --accent-dim: #a67c2c;
+  --success: #4ade80;
+  --danger: #f87171;
+  --ring: rgba(212, 175, 55, 0.35);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-dm-sans);
+  --font-display: var(--font-fraunces);
+}
+
+body {
+  background: radial-gradient(1200px 600px at 10% -10%, rgba(212, 175, 55, 0.08), transparent),
+    radial-gradient(800px 400px at 100% 0%, rgba(166, 124, 44, 0.06), transparent),
+    var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+::selection {
+  background: rgba(212, 175, 55, 0.35);
+  color: #fff;
+}
+
+/* Recharts tooltip */
+.recharts-default-tooltip {
+  border-radius: 12px !important;
+  border: 1px solid var(--card-border) !important;
+  background: #1a1814 !important;
+  color: var(--foreground) !important;
+}
