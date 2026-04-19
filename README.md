@@ -1,36 +1,99 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Rekap Warkop
+
+Aplikasi rekapitulasi warkop yang dibangun dengan Next.js, MongoDB, dan TypeScript.
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
 
+- Node.js (v20 atau lebih baru)
+- MongoDB Atlas account (untuk database)
+- npm, yarn, pnpm, atau bun
+
+### Installation
+
+1. Clone repository:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone <your-repo-url>
+cd rekap-warkop
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Install dependencies:
+```bash
+npm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Setup environment variables:
+```bash
+cp .env.example .env.local
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+4. Edit `.env.local` dan isi dengan:
+- `MONGODB_URI`: MongoDB connection string dari MongoDB Atlas
+- `MONGODB_DB`: Nama database (default: warkop)
+- `JWT_SECRET`: Secret key untuk JWT authentication (generate string yang kuat)
 
-## Learn More
+5. Run development server:
+```bash
+npm run dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+6. Buka [http://localhost:3000](http://localhost:3000) di browser.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Environment Variables
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Lihat file `.env.example` untuk referensi environment variables yang dibutuhkan.
 
 ## Deploy on Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Langkah 1: Persiapan Database
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Login ke [MongoDB Atlas](https://www.mongodb.com/cloud/atlas)
+2. Buat cluster baru atau gunakan yang sudah ada
+3. Buat database user dengan password
+4. Whitelist IP address (pilih "Allow Access from Anywhere" untuk Vercel)
+5. Copy connection string (format: `mongodb+srv://username:password@cluster.mongodb.net/dbname`)
+
+### Langkah 2: Setup di Vercel
+
+1. Push code ke GitHub/GitLab/Bitbucket
+2. Login ke [Vercel](https://vercel.com)
+3. Klik "Add New Project"
+4. Import repository dari GitHub/GitLab/Bitbucket
+5. Vercel akan otomatis mendeteksi Next.js project
+
+### Langkah 3: Setup Environment Variables di Vercel
+
+Di dashboard Vercel project:
+1. Klik "Settings" → "Environment Variables"
+2. Tambahkan environment variables:
+   - `MONGODB_URI`: MongoDB connection string dari Atlas
+   - `MONGODB_DB`: warkop (atau nama database yang diinginkan)
+   - `JWT_SECRET`: Generate string yang kuat (gunakan: `openssl rand -base64 32`)
+
+### Langkah 4: Deploy
+
+1. Klik "Deploy" di Vercel
+2. Tunggu proses build selesai
+3. Aplikasi akan live dengan URL dari Vercel
+
+### Deploy Menggunakan Vercel CLI
+
+Alternatif deploy menggunakan CLI:
+
+```bash
+# Install Vercel CLI
+npm i -g vercel
+
+# Login ke Vercel
+vercel login
+
+# Deploy
+vercel
+```
+
+## Learn More
+
+- [Next.js Documentation](https://nextjs.org/docs)
+- [MongoDB Atlas Documentation](https://docs.atlas.mongodb.com/)
+- [Vercel Deployment Documentation](https://vercel.com/docs)
