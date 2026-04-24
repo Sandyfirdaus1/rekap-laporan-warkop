@@ -6,8 +6,8 @@ import { Sidebar } from "@/components/Sidebar";
 import clsx from "clsx";
 import { LogOut } from "lucide-react";
 
-const IDLE_TIMEOUT = 15 * 60 * 1000; // 15 minutes in milliseconds
-const WARNING_TIMEOUT = 14 * 60 * 1000; // 14 minutes (1 minute before logout)
+const IDLE_TIMEOUT = 10 * 60 * 1000; // 10 minutes in milliseconds
+const WARNING_TIMEOUT = 9 * 60 * 1000; // 9 minutes (1 minute before logout)
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -101,7 +101,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 Sesi akan berakhir
               </h3>
               <p className="mt-2 text-sm text-[var(--muted)]">
-                Anda tidak aktif selama 14 menit. Anda akan otomatis logout dalam 1 menit karena keamanan.
+                Anda tidak aktif selama 9 menit. Anda akan otomatis logout dalam 1 menit karena keamanan.
               </p>
               <div className="mt-6 flex gap-3">
                 <button
@@ -140,10 +140,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <nav className="flex flex-1 flex-col gap-1">
-            <a href="/dashboard" className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium bg-[var(--accent)]/15 text-[var(--accent)] ring-1 ring-[var(--ring)]">
+            <a href="/dashboard" className={clsx(
+              "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+              pathname === "/dashboard"
+                ? "bg-[var(--accent)]/15 text-[var(--accent)] ring-1 ring-[var(--ring)]"
+                : "text-[var(--muted)] hover:bg-white/5 hover:text-[var(--foreground)]"
+            )}>
               Dashboard
             </a>
-            <a href="/inventory" className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[var(--muted)] hover:bg-white/5 hover:text-[var(--foreground)]">
+            <a href="/inventory" className={clsx(
+              "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+              pathname === "/inventory"
+                ? "bg-[var(--accent)]/15 text-[var(--accent)] ring-1 ring-[var(--ring)]"
+                : "text-[var(--muted)] hover:bg-white/5 hover:text-[var(--foreground)]"
+            )}>
               Inventori
             </a>
           </nav>
@@ -190,10 +200,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </div>
             </div>
             <nav className="flex flex-col gap-1">
-              <a href="/dashboard" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium bg-[var(--accent)]/15 text-[var(--accent)] ring-1 ring-[var(--ring)]">
+              <a href="/dashboard" onClick={() => setMobileOpen(false)} className={clsx(
+                "flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors",
+                pathname === "/dashboard"
+                  ? "bg-[var(--accent)]/15 text-[var(--accent)] ring-1 ring-[var(--ring)]"
+                  : "text-[var(--muted)] hover:bg-white/5 hover:text-[var(--foreground)]"
+              )}>
                 Dashboard
               </a>
-              <a href="/inventory" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-[var(--muted)] hover:bg-white/5 hover:text-[var(--foreground)]">
+              <a href="/inventory" onClick={() => setMobileOpen(false)} className={clsx(
+                "flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors",
+                pathname === "/inventory"
+                  ? "bg-[var(--accent)]/15 text-[var(--accent)] ring-1 ring-[var(--ring)]"
+                  : "text-[var(--muted)] hover:bg-white/5 hover:text-[var(--foreground)]"
+              )}>
                 Inventori
               </a>
             </nav>

@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
 
     const token = await new SignJWT({ userId: result.insertedId, username })
       .setProtectedHeader({ alg: "HS256" })
-      .setExpirationTime("15m")
+      .setExpirationTime("10m")
       .sign(secret);
 
     // Set cookie
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 60 * 15, // 15 minutes
+      maxAge: 60 * 10, // 10 minutes
       path: "/",
     });
 
