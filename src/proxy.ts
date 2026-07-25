@@ -4,7 +4,7 @@ import { jwtVerify } from "jose";
 
 const publicPaths = ["/login", "/register", "/api/auth/login", "/api/auth/register"];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Allow public paths
