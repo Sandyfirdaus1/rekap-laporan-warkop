@@ -34,11 +34,27 @@ export type ChartRow = {
 function shortLabel(full: string, mode: "today" | "week" | "month") {
   if (mode === "today") {
     const parts = full.split(" ");
-    const hm = parts[parts.length - 1]?.replace(":00", "h") ?? full;
+    const hm = parts[parts.length - 1]?.replace(":00", "") ?? full;
     return hm;
   }
-  const [, m, d] = full.split("-");
-  if (d && m) return `${d}/${m}`;
+  
+  if (mode === "month") {
+    // Parse YYYY-MM format
+    const [y, m] = full.split("-").map(Number);
+    const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+    return months[m - 1];
+  }
+  
+  // Parse date from YYYY-MM-DD format (for week mode)
+  const [y, m, d] = full.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  
+  if (mode === "week") {
+    const days = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
+    const dayIndex = date.getDay() === 0 ? 6 : date.getDay() - 1; // Convert Sunday (0) to 6, Monday (1) to 0, etc.
+    return days[dayIndex];
+  }
+  
   return full;
 }
 
@@ -47,7 +63,7 @@ type ChartStyle = "combo" | "lines" | "bars";
 const legendNames: Record<string, string> = {
   revenue: "Pemasukan (IDR)",
   transactions: "Transaksi jual",
-  qtySold: "Unit terjual",
+  qtySold: "Barang terjual",
   qtyStockOut: "Keluar (non-jual)",
 };
 
@@ -60,10 +76,10 @@ export function SalesComboChart({
 }) {
   const [style, setStyle] = useState<ChartStyle>("combo");
   const [visible, setVisible] = useState<VisibleSeries>({
-    revenue: true,
-    transactions: true,
-    qtySold: true,
-    qtyStockOut: true,
+    revenue: false,
+    transactions: false,
+    qtySold: false,
+    qtyStockOut: false,
   });
 
   const toggleSeries = (key: keyof VisibleSeries) => {
@@ -81,7 +97,7 @@ export function SalesComboChart({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-[var(--muted)]">
           Pemasukan, transaksi jual, dan unit barang keluar (terjual + non-jual) per{" "}
-          {mode === "today" ? "jam" : "hari"}
+          {mode === "today" ? "jam" : mode === "week" ? "hari" : "bulan"}
         </p>
         <div className="flex rounded-xl bg-black/25 p-0.5 ring-1 ring-[var(--card-border)]">
           {(
@@ -111,7 +127,7 @@ export function SalesComboChart({
         {[
           ["revenue", "Pemasukan", "#fbbf24"],
           ["transactions", "Transaksi", "#3b82f6"],
-          ["qtySold", "Unit terjual", "#14b8a6"],
+          ["qtySold", "Barang terjual", "#14b8a6"],
           ["qtyStockOut", "Keluar non-jual", "#f97316"],
         ].map(([key, label, color]) => (
           <button
@@ -149,8 +165,7 @@ export function SalesComboChart({
               dataKey="label"
               tick={{ fill: "#9c8f7e", fontSize: 10 }}
               tickFormatter={(v) => shortLabel(String(v), mode)}
-              interval="preserveStartEnd"
-              minTickGap={16}
+              interval={0}
             />
             <YAxis
               yAxisId="rev"
@@ -186,7 +201,7 @@ export function SalesComboChart({
                       Pemasukan: {idr(row.revenue)}
                     </p>
                     <p className="text-xs text-sky-300">Transaksi jual: {row.transactions}</p>
-                    <p className="text-xs text-teal-300">Unit terjual: {row.qtySold}</p>
+                    <p className="text-xs text-teal-300">Barang terjual: {row.qtySold}</p>
                     <p className="text-xs text-orange-300">Keluar non-jual: {row.qtyStockOut}</p>
                     <p className="text-xs text-[var(--muted)]">
                       Total unit keluar: {row.totalQtyOut}
@@ -202,6 +217,26 @@ export function SalesComboChart({
 
             {style === "bars" && (
               <>
+                {visible.revenue && (
+                  <Bar
+                    yAxisId="rev"
+                    dataKey="revenue"
+                    fill="#fbbf24"
+                    fillOpacity={0.8}
+                    name="revenue"
+                    radius={[4, 4, 0, 0]}
+                  />
+                )}
+                {visible.transactions && (
+                  <Bar
+                    yAxisId="tx"
+                    dataKey="transactions"
+                    fill="#3b82f6"
+                    fillOpacity={0.8}
+                    name="transactions"
+                    radius={[4, 4, 0, 0]}
+                  />
+                )}
                 {visible.qtySold && (
                   <Bar
                     yAxisId="qty"

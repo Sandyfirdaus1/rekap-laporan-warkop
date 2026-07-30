@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { ObjectId } from "mongodb";
-import clientPromise, { getDbName } from "@/lib/mongodb";
+import pool from "@/lib/mysql";
 import type { ProductDoc } from "@/lib/types";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -12,29 +11,49 @@ function badId() {
 export async function PATCH(req: Request, ctx: Ctx) {
   try {
     const { id } = await ctx.params;
-    if (!ObjectId.isValid(id)) return badId();
+    const productId = Number(id);
+    if (isNaN(productId) || productId <= 0) return badId();
 
     const body = await req.json();
-    const updates: Partial<ProductDoc> = { updatedAt: new Date() };
+    const updates: string[] = [];
+    const values: any[] = [];
 
     if (body.name !== undefined) {
       const name = String(body.name).trim();
       if (!name) return NextResponse.json({ error: "Nama tidak boleh kosong" }, { status: 400 });
-      updates.name = name;
+      updates.push("name = ?");
+      values.push(name);
     }
-    if (body.unit !== undefined) updates.unit = String(body.unit).trim() || "pcs";
-    if (body.stock !== undefined) updates.stock = Math.max(0, Math.floor(Number(body.stock)));
-    if (body.minStock !== undefined) updates.minStock = Math.max(0, Math.floor(Number(body.minStock)));
-    if (body.sellPrice !== undefined) updates.sellPrice = Math.max(0, Number(body.sellPrice));
+    if (body.unit !== undefined) {
+      updates.push("unit = ?");
+      values.push(String(body.unit).trim() || "pcs");
+    }
+    if (body.stock !== undefined) {
+      updates.push("stock = ?");
+      values.push(Math.max(0, Math.floor(Number(body.stock))));
+    }
+    if (body.minStock !== undefined) {
+      updates.push("min_stock = ?");
+      values.push(Math.max(0, Math.floor(Number(body.minStock))));
+    }
+    if (body.sellPrice !== undefined) {
+      updates.push("sell_price = ?");
+      values.push(Math.max(0, Number(body.sellPrice)));
+    }
 
-    const client = await clientPromise;
-    const db = client.db(getDbName());
-    const res = await db.collection<ProductDoc>("products").updateOne(
-      { _id: new ObjectId(id) },
-      { $set: updates }
-    );
+    if (updates.length === 0) {
+      return NextResponse.json({ error: "Tidak ada field yang diupdate" }, { status: 400 });
+    }
 
-    if (res.matchedCount === 0) {
+    updates.push("updated_at = ?");
+    values.push(new Date());
+    values.push(productId);
+
+    const query = `UPDATE products SET ${updates.join(", ")} WHERE id = ?`;
+    const [result] = await pool.query(query, values);
+    const updateResult = result as any;
+
+    if (updateResult.affectedRows === 0) {
       return NextResponse.json({ error: "Produk tidak ditemukan" }, { status: 404 });
     }
 
@@ -48,13 +67,13 @@ export async function PATCH(req: Request, ctx: Ctx) {
 export async function DELETE(_req: Request, ctx: Ctx) {
   try {
     const { id } = await ctx.params;
-    if (!ObjectId.isValid(id)) return badId();
+    const productId = Number(id);
+    if (isNaN(productId) || productId <= 0) return badId();
 
-    const client = await clientPromise;
-    const db = client.db(getDbName());
-    const res = await db.collection<ProductDoc>("products").deleteOne({ _id: new ObjectId(id) });
+    const [result] = await pool.query("DELETE FROM products WHERE id = ?", [productId]);
+    const deleteResult = result as any;
 
-    if (res.deletedCount === 0) {
+    if (deleteResult.affectedRows === 0) {
       return NextResponse.json({ error: "Produk tidak ditemukan" }, { status: 404 });
     }
 

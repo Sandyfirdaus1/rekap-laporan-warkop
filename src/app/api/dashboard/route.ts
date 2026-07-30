@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import clientPromise, { getDbName } from "@/lib/mongodb";
+import pool from "@/lib/mysql";
 import {
   formatDayKey,
   formatHourKey,
@@ -23,7 +23,7 @@ function emptyBucket(): Bucket {
 
 function mapProduct(p: ProductDoc) {
   return {
-    id: p._id.toString(),
+    id: p.id.toString(),
     name: p.name,
     unit: p.unit,
     stock: p.stock,
@@ -54,37 +54,55 @@ export async function GET(req: Request) {
       end = bounds.end;
     }
 
-    const client = await clientPromise;
-    const db = client.db(getDbName());
+    const [productsRows] = await pool.query(
+      "SELECT id, name, unit, stock, min_stock as minStock FROM products ORDER BY name ASC"
+    );
+    const products = productsRows as any[];
 
-    const [products, sales, stockOuts] = await Promise.all([
-      db.collection<ProductDoc>("products").find({}).sort({ name: 1 }).toArray(),
-      db
-        .collection<SaleDoc>("sales")
-        .find({ occurredAt: { $gte: start, $lte: end } })
-        .sort({ occurredAt: 1 })
-        .toArray(),
-      db
-        .collection<StockOutDoc>("stock_outs")
-        .find({ occurredAt: { $gte: start, $lte: end } })
-        .sort({ occurredAt: 1 })
-        .toArray(),
-    ]);
+    const [salesRows] = await pool.query(
+      "SELECT id, occurred_at as occurredAt, total FROM sales WHERE occurred_at >= ? AND occurred_at <= ? ORDER BY occurred_at ASC",
+      [start, end]
+    );
+    const sales = salesRows as any[];
+
+    const [stockOutsRows] = await pool.query(
+      "SELECT id, occurred_at as occurredAt FROM stock_outs WHERE occurred_at >= ? AND occurred_at <= ? ORDER BY occurred_at ASC",
+      [start, end]
+    );
+    const stockOuts = stockOutsRows as any[];
+
+    // Get sale items for each sale
+    for (const sale of sales) {
+      const [itemsRows] = await pool.query(
+        "SELECT qty FROM sale_items WHERE sale_id = ?",
+        [sale.id]
+      );
+      sale.items = itemsRows as any[];
+    }
+
+    // Get stock out items for each stock out
+    for (const stockOut of stockOuts) {
+      const [itemsRows] = await pool.query(
+        "SELECT qty FROM stock_out_items WHERE stock_out_id = ?",
+        [stockOut.id]
+      );
+      stockOut.items = itemsRows as any[];
+    }
 
     const totalProducts = products.length;
     const available = products.filter((p) => p.stock > p.minStock);
     const lowStock = products.filter((p) => p.stock > 0 && p.stock <= p.minStock);
     const outOfStock = products.filter((p) => p.stock === 0);
 
-    const totalRevenue = sales.reduce((s, x) => s + x.total, 0);
+    const totalRevenue = sales.reduce((s, x) => s + Number(x.total), 0);
     const transactionCount = sales.length;
 
     const totalQtySold = sales.reduce(
-      (s, sale) => s + sale.items.reduce((a, it) => a + it.qty, 0),
+      (s, sale) => s + sale.items.reduce((a: number, it: any) => a + it.qty, 0),
       0
     );
     const totalQtyStockOut = stockOuts.reduce(
-      (s, doc) => s + doc.items.reduce((a, it) => a + it.qty, 0),
+      (s, doc) => s + doc.items.reduce((a: number, it: any) => a + it.qty, 0),
       0
     );
     const stockOutTransactionCount = stockOuts.length;
@@ -97,23 +115,44 @@ export async function GET(req: Request) {
         const label = `${dayKey} ${String(h).padStart(2, "0")}:00`;
         chartMap.set(label, emptyBucket());
       }
+    } else if (range === "month") {
+      // Initialize all 12 months for the current year
+      const year = start.getFullYear();
+      const monthNames = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+      for (let m = 0; m < 12; m++) {
+        chartMap.set(`${year}-${String(m + 1).padStart(2, "0")}`, emptyBucket());
+      }
     }
 
     for (const sale of sales) {
-      const d = sale.occurredAt;
-      const key = range === "today" ? formatHourKey(d) : formatDayKey(d);
+      const d = new Date(sale.occurredAt);
+      let key: string;
+      if (range === "today") {
+        key = formatHourKey(d);
+      } else if (range === "month") {
+        key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      } else {
+        key = formatDayKey(d);
+      }
       const cur = chartMap.get(key) ?? emptyBucket();
-      cur.revenue += sale.total;
+      cur.revenue += Number(sale.total);
       cur.transactions += 1;
-      cur.qtySold += sale.items.reduce((a, it) => a + it.qty, 0);
+      cur.qtySold += sale.items.reduce((a: number, it: any) => a + it.qty, 0);
       chartMap.set(key, cur);
     }
 
     for (const doc of stockOuts) {
-      const d = doc.occurredAt;
-      const key = range === "today" ? formatHourKey(d) : formatDayKey(d);
+      const d = new Date(doc.occurredAt);
+      let key: string;
+      if (range === "today") {
+        key = formatHourKey(d);
+      } else if (range === "month") {
+        key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      } else {
+        key = formatDayKey(d);
+      }
       const cur = chartMap.get(key) ?? emptyBucket();
-      cur.qtyStockOut += doc.items.reduce((a, it) => a + it.qty, 0);
+      cur.qtyStockOut += doc.items.reduce((a: number, it: any) => a + it.qty, 0);
       chartMap.set(key, cur);
     }
 
@@ -121,6 +160,12 @@ export async function GET(req: Request) {
     if (range === "today") {
       const dayKey = formatDayKey(start);
       labels = Array.from({ length: 24 }, (_, h) => `${dayKey} ${String(h).padStart(2, "0")}:00`);
+    } else if (range === "month") {
+      const year = start.getFullYear();
+      labels = [];
+      for (let m = 0; m < 12; m++) {
+        labels.push(`${year}-${String(m + 1).padStart(2, "0")}`);
+      }
     } else {
       labels = [];
       const cur = new Date(start);

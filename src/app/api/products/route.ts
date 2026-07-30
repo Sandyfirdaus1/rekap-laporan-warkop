@@ -1,24 +1,22 @@
 import { NextResponse } from "next/server";
-import clientPromise, { getDbName } from "@/lib/mongodb";
+import pool from "@/lib/mysql";
 import type { ProductDoc } from "@/lib/types";
 
 export async function GET() {
   try {
-    const client = await clientPromise;
-    const db = client.db(getDbName());
-    const products = await db
-      .collection<ProductDoc>("products")
-      .find({})
-      .sort({ name: 1 })
-      .toArray();
-
+    const [rows] = await pool.query(
+      "SELECT id, name, unit, stock, min_stock as minStock, sell_price as sellPrice, created_at as createdAt, updated_at as updatedAt FROM products ORDER BY name ASC"
+    );
+    
+    const products = rows as any[];
+    
     const body = products.map((p) => ({
-      id: p._id.toString(),
+      id: p.id.toString(),
       name: p.name,
       unit: p.unit,
       stock: p.stock,
       minStock: p.minStock,
-      sellPrice: p.sellPrice,
+      sellPrice: Math.round(Number(p.sellPrice)),
       createdAt: p.createdAt.toISOString(),
       updatedAt: p.updatedAt.toISOString(),
     }));
@@ -43,21 +41,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Nama wajib diisi" }, { status: 400 });
     }
 
-    const now = new Date();
-    const client = await clientPromise;
-    const db = client.db(getDbName());
-    const result = await db.collection("products").insertOne({
-      name,
-      unit,
-      stock: Math.max(0, Math.floor(stock)),
-      minStock: Math.max(0, Math.floor(minStock)),
-      purchasePrice: 0,
-      sellPrice: Math.max(0, sellPrice),
-      createdAt: now,
-      updatedAt: now,
-    });
+    const [result] = await pool.query(
+      "INSERT INTO products (name, unit, stock, min_stock, purchase_price, sell_price) VALUES (?, ?, ?, ?, ?, ?)",
+      [name, unit, Math.max(0, Math.floor(stock)), Math.max(0, Math.floor(minStock)), 0, Math.max(0, sellPrice)]
+    );
 
-    return NextResponse.json({ id: result.insertedId.toString() }, { status: 201 });
+    const insertResult = result as any;
+    return NextResponse.json({ id: insertResult.insertId.toString() }, { status: 201 });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: "Gagal menambah produk" }, { status: 500 });

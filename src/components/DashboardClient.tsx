@@ -16,11 +16,6 @@ import { SalesComboChart } from "@/components/dashboard/SalesComboChart";
 import { StockByStatusPanel } from "@/components/dashboard/StockByStatusPanel";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { SalesHistory } from "@/components/dashboard/SalesHistory";
-import {
-  RecordSaleCard,
-  type LineDraft,
-  type ProductOption,
-} from "@/components/dashboard/RecordSaleCard";
 import { idr } from "@/lib/format";
 
 type Range = "today" | "week" | "month";
@@ -31,6 +26,23 @@ type StockRow = {
   unit: string;
   stock: number;
   minStock: number;
+};
+
+type Sale = {
+  id: string;
+  occurredAt: string;
+  total: number;
+  items: {
+    productId: string;
+    name: string;
+    qty: number;
+    unitPrice: number;
+    subtotal: number;
+  }[];
+};
+
+type SalesResponse = {
+  sales: Sale[];
 };
 
 type DashboardPayload = {
@@ -60,23 +72,6 @@ type DashboardPayload = {
   }[];
 };
 
-type Sale = {
-  id: string;
-  occurredAt: string;
-  total: number;
-  items: {
-    productId: string;
-    name: string;
-    qty: number;
-    unitPrice: number;
-    subtotal: number;
-  }[];
-};
-
-type SalesResponse = {
-  sales: Sale[];
-};
-
 export function DashboardClient() {
   const [range, setRange] = useState<Range>("today");
   const [selectedDate, setSelectedDate] = useState("");
@@ -84,11 +79,6 @@ export function DashboardClient() {
   const [data, setData] = useState<DashboardPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sales, setSales] = useState<Sale[]>([]);
-
-  const [products, setProducts] = useState<ProductOption[]>([]);
-  const [lines, setLines] = useState<LineDraft[]>([{ productId: "", qty: "1" }]);
-  const [saleBusy, setSaleBusy] = useState(false);
-  const [saleMsg, setSaleMsg] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -101,27 +91,13 @@ export function DashboardClient() {
         ? `/api/sales?startDate=${selectedDate}`
         : `/api/sales?range=${range}`;
 
-      const [dashRes, prodRes, salesRes] = await Promise.all([
+      const [dashRes, salesRes] = await Promise.all([
         fetch(dashUrl, { cache: "no-store" }),
-        fetch("/api/products", { cache: "no-store" }),
         fetch(salesUrl, { cache: "no-store" }),
       ]);
       if (!dashRes.ok) throw new Error("Gagal memuat dashboard");
       const dashJson = (await dashRes.json()) as DashboardPayload;
       setData(dashJson);
-
-      if (prodRes.ok) {
-        const list = await prodRes.json();
-        setProducts(
-          list.map((p: ProductOption & { id: string }) => ({
-            id: p.id,
-            name: p.name,
-            unit: p.unit,
-            stock: p.stock,
-            sellPrice: p.sellPrice,
-          }))
-        );
-      }
 
       if (salesRes.ok) {
         const salesJson = (await salesRes.json()) as SalesResponse;
@@ -140,41 +116,6 @@ export function DashboardClient() {
     }, 0);
     return () => window.clearTimeout(id);
   }, [load]);
-
-  const addLine = () => setLines((prev) => [...prev, { productId: "", qty: "1" }]);
-  const setLine = (i: number, patch: Partial<LineDraft>) =>
-    setLines((prev) => prev.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
-  const removeLine = (i: number) =>
-    setLines((prev) => (prev.length <= 1 ? prev : prev.filter((_, idx) => idx !== i)));
-
-  const submitSale = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaleMsg(null);
-    const items = lines
-      .map((l) => ({ productId: l.productId, qty: Number(l.qty) }))
-      .filter((l) => l.productId && l.qty > 0);
-    if (items.length === 0) {
-      setSaleMsg("Pilih produk dan jumlah.");
-      return;
-    }
-    setSaleBusy(true);
-    try {
-      const res = await fetch("/api/sales", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items }),
-      });
-      const j = await res.json();
-      if (!res.ok) throw new Error(j.error ?? "Gagal menyimpan");
-      setSaleMsg(`Tersimpan · Total ${idr(j.total)}`);
-      setLines([{ productId: "", qty: "1" }]);
-      await load();
-    } catch (err) {
-      setSaleMsg(err instanceof Error ? err.message : "Gagal");
-    } finally {
-      setSaleBusy(false);
-    }
-  };
 
   const exportExcel = async () => {
     if (!data) return;
@@ -287,59 +228,42 @@ export function DashboardClient() {
         <>
           <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             <StatCard
-              label="Total jenis barang"
+              label="📦 Total Jenis Barang"
               value={String(data.stats.totalProducts)}
               hint="SKU terdaftar"
-              icon={Package}
               accent="amber"
             />
             <StatCard
-              label="Produk tersedia"
-              value={String(data.stats.availableProducts)}
-              hint="Stok di atas batas minimum"
-              icon={ShoppingBag}
-              accent="emerald"
-            />
-            <StatCard
-              label="Total pemasukan"
+              label="💰 Total Pemasukan"
               value={idr(data.stats.totalRevenue)}
               hint={`${data.stats.transactionCount} transaksi jual`}
-              icon={Wallet}
               accent="emerald"
             />
             <StatCard
-              label="Unit terjual"
+              label="🛒 Barang Terjual"
               value={String(data.stats.totalQtySold)}
               hint="Qty dari penjualan"
-              icon={TrendingUp}
               accent="sky"
             />
             <StatCard
-              label="Keluar (non-jual)"
+              label="📤 Keluar (Non Jual)"
               value={String(data.stats.totalQtyStockOut)}
               hint={`${data.stats.stockOutTransactionCount} pencatatan · stok berkurang`}
-              icon={PackageMinus}
               accent="default"
             />
             <StatCard
-              label="Total unit keluar"
+              label="📊 Total Unit Keluar"
               value={String(data.stats.totalQtyOut)}
               hint="Terjual + non-jual (periode)"
-              icon={Layers}
+              accent="amber"
+            />
+            <StatCard
+              label="⚠️ Perlu Restock / Stok Menipis"
+              value={String(data.stockByStatus.lowStock.length + data.stockByStatus.outOfStock.length)}
+              hint={`${data.stockByStatus.lowStock.length} menipis · ${data.stockByStatus.outOfStock.length} habis`}
               accent="amber"
             />
           </section>
-
-          <RecordSaleCard
-            products={products}
-            lines={lines}
-            saleBusy={saleBusy}
-            saleMsg={saleMsg}
-            onAddLine={addLine}
-            onSetLine={setLine}
-            onRemoveLine={removeLine}
-            onSubmit={submitSale}
-          />
 
           <SalesHistory sales={sales} selectedDate={selectedDate} onDateChange={setSelectedDate} />
 

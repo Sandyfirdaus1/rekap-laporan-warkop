@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { ObjectId, type ClientSession } from "mongodb";
-import clientPromise, { getDbName } from "@/lib/mongodb";
+import pool from "@/lib/mysql";
 import {
   formatDayKey,
   formatHourKey,
@@ -41,23 +40,31 @@ export async function GET(req: Request) {
       end = bounds.end;
     }
 
-    const client = await clientPromise;
-    const db = client.db(getDbName());
-    const sales = await db
-      .collection<SaleDoc>("sales")
-      .find({ occurredAt: { $gte: start, $lte: end } })
-      .sort({ occurredAt: 1 })
-      .toArray();
+    const [salesRows] = await pool.query(
+      "SELECT id, occurred_at as occurredAt, total, created_at as createdAt FROM sales WHERE occurred_at >= ? AND occurred_at <= ? ORDER BY occurred_at ASC",
+      [start, end]
+    );
 
-    const totalRevenue = sales.reduce((s, x) => s + x.total, 0);
+    const sales = salesRows as any[];
+    
+    // Get sale items for each sale
+    for (const sale of sales) {
+      const [itemsRows] = await pool.query(
+        "SELECT product_id as productId, name, qty, unit_price as unitPrice, subtotal FROM sale_items WHERE sale_id = ?",
+        [sale.id]
+      );
+      sale.items = itemsRows as any[];
+    }
+
+    const totalRevenue = sales.reduce((s, x) => s + Number(x.total), 0);
 
     const chartMap = new Map<string, { revenue: number; transactions: number }>();
 
     for (const sale of sales) {
-      const d = sale.occurredAt;
+      const d = new Date(sale.occurredAt);
       const key = range === "today" ? formatHourKey(d) : formatDayKey(d);
       const cur = chartMap.get(key) ?? { revenue: 0, transactions: 0 };
-      cur.revenue += sale.total;
+      cur.revenue += Number(sale.total);
       cur.transactions += 1;
       chartMap.set(key, cur);
     }
@@ -76,9 +83,9 @@ export async function GET(req: Request) {
       totalRevenue,
       transactionCount: sales.length,
       sales: sales.map((s) => ({
-        id: s._id.toString(),
+        id: s.id.toString(),
         occurredAt: s.occurredAt.toISOString(),
-        total: s.total,
+        total: Number(s.total),
         items: s.items,
       })),
       chart,
@@ -90,11 +97,11 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const client = await clientPromise;
-  const db = client.db(getDbName());
-  let session: ClientSession | undefined;
+  const connection = await pool.getConnection();
 
   try {
+    await connection.beginTransaction();
+
     const body = await req.json();
     const rawItems = Array.isArray(body.items) ? body.items : [];
     const occurredAt = body.occurredAt ? new Date(body.occurredAt) : new Date();
@@ -102,34 +109,44 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Tanggal tidak valid" }, { status: 400 });
     }
 
-    type Line = { productId: ObjectId; qty: number };
+    type Line = { productId: number; qty: number };
     const lines: Line[] = [];
     for (const row of rawItems) {
-      const pid = String(row.productId ?? "");
+      const pid = Number(row.productId ?? 0);
       const qty = Math.floor(Number(row.qty ?? 0));
-      if (!ObjectId.isValid(pid) || qty <= 0) continue;
-      lines.push({ productId: new ObjectId(pid), qty });
+      if (pid > 0 && qty > 0) {
+        lines.push({ productId: pid, qty });
+      }
     }
 
     if (lines.length === 0) {
       return NextResponse.json({ error: "Minimal satu item penjualan" }, { status: 400 });
     }
 
-    const productsCol = db.collection<ProductDoc>("products");
     const saleItems: SaleItem[] = [];
     let total = 0;
 
     for (const line of lines) {
-      const p = await productsCol.findOne({ _id: line.productId });
-      if (!p) {
+      const [products] = await connection.query(
+        "SELECT id, name, stock, sell_price as sellPrice FROM products WHERE id = ? FOR UPDATE",
+        [line.productId]
+      );
+      const productRows = products as any[];
+      
+      if (productRows.length === 0) {
+        await connection.rollback();
         return NextResponse.json({ error: "Produk tidak ditemukan" }, { status: 400 });
       }
+      
+      const p = productRows[0];
       if (p.stock < line.qty) {
+        await connection.rollback();
         return NextResponse.json(
           { error: `Stok "${p.name}" tidak mencukupi (tersisa ${p.stock})` },
           { status: 400 }
         );
       }
+      
       const subtotal = line.qty * p.sellPrice;
       total += subtotal;
       saleItems.push({
@@ -142,33 +159,38 @@ export async function POST(req: Request) {
     }
 
     const now = new Date();
-    session = client.startSession();
+    
+    // Insert sale
+    const [saleResult] = await connection.query(
+      "INSERT INTO sales (occurred_at, total) VALUES (?, ?)",
+      [occurredAt, total]
+    );
+    const saleInsertResult = saleResult as any;
+    const saleId = saleInsertResult.insertId;
 
-    await session.withTransaction(async () => {
-      await db.collection("sales").insertOne(
-        {
-          occurredAt,
-          items: saleItems,
-          total,
-          createdAt: now,
-        },
-        { session }
+    // Insert sale items
+    for (const item of saleItems) {
+      await connection.query(
+        "INSERT INTO sale_items (sale_id, product_id, name, qty, unit_price, subtotal) VALUES (?, ?, ?, ?, ?, ?)",
+        [saleId, item.productId, item.name, item.qty, item.unitPrice, item.subtotal]
       );
+    }
 
-      for (const line of lines) {
-        await productsCol.updateOne(
-          { _id: line.productId },
-          { $inc: { stock: -line.qty }, $set: { updatedAt: now } },
-          { session }
-        );
-      }
-    });
+    // Update product stocks
+    for (const line of lines) {
+      await connection.query(
+        "UPDATE products SET stock = stock - ?, updated_at = ? WHERE id = ?",
+        [line.qty, now, line.productId]
+      );
+    }
 
+    await connection.commit();
     return NextResponse.json({ ok: true, total }, { status: 201 });
   } catch (e) {
+    await connection.rollback();
     console.error(e);
     return NextResponse.json({ error: "Gagal menyimpan penjualan" }, { status: 500 });
   } finally {
-    if (session) await session.endSession();
+    connection.release();
   }
 }

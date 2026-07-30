@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import clientPromise from "@/lib/mongodb";
+import pool from "@/lib/mysql";
 import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
 import { cookies } from "next/headers";
@@ -22,13 +22,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const client = await clientPromise;
-    const db = client.db(process.env.MONGODB_DB ?? "warkop");
-    const users = db.collection("users");
-
     // Check if user already exists
-    const existingUser = await users.findOne({ username });
-    if (existingUser) {
+    const [existingUsers] = await pool.query(
+      "SELECT id FROM users WHERE username = ?",
+      [username]
+    );
+    const existingUserRows = existingUsers as any[];
+    
+    if (existingUserRows.length > 0) {
       return NextResponse.json(
         { error: "Username sudah digunakan" },
         { status: 400 }
@@ -39,18 +40,19 @@ export async function POST(request: NextRequest) {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Create user
-    const result = await users.insertOne({
-      username,
-      password: hashedPassword,
-      createdAt: new Date(),
-    });
+    const [result] = await pool.query(
+      "INSERT INTO users (username, password) VALUES (?, ?)",
+      [username, hashedPassword]
+    );
+    const insertResult = result as any;
+    const userId = insertResult.insertId;
 
     // Generate JWT
     const secret = new TextEncoder().encode(
       process.env.JWT_SECRET || "your-secret-key-change-this-in-production"
     );
 
-    const token = await new SignJWT({ userId: result.insertedId, username })
+    const token = await new SignJWT({ userId, username })
       .setProtectedHeader({ alg: "HS256" })
       .setExpirationTime("10m")
       .sign(secret);
@@ -67,7 +69,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      user: { id: result.insertedId, username },
+      user: { id: userId, username },
     });
   } catch (error) {
     console.error("Register error:", error);

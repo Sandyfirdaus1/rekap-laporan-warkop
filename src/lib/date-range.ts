@@ -11,9 +11,15 @@ export function getRangeBounds(preset: RangePreset, now = new Date()) {
     start = new Date(now);
     start.setHours(0, 0, 0, 0);
   } else if (preset === "week") {
+    // Start from Monday (0 = Sunday, 1 = Monday, etc.)
+    const day = now.getDay();
+    const diff = day === 0 ? 6 : day - 1; // Days to subtract to get to Monday
     start = new Date(now);
-    start.setDate(start.getDate() - 6);
+    start.setDate(start.getDate() - diff);
     start.setHours(0, 0, 0, 0);
+    // End on Sunday
+    end.setDate(start.getDate() + 6);
+    end.setHours(23, 59, 59, 999);
   } else {
     start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);

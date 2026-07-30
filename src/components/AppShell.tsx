@@ -156,6 +156,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             )}>
               Inventori
             </a>
+            <a href="/orders" className={clsx(
+              "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+              pathname === "/orders"
+                ? "bg-[var(--accent)]/15 text-[var(--accent)] ring-1 ring-[var(--ring)]"
+                : "text-[var(--muted)] hover:bg-white/5 hover:text-[var(--foreground)]"
+            )}>
+              Pesanan
+            </a>
+            <a href="/order-history" className={clsx(
+              "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+              pathname === "/order-history"
+                ? "bg-[var(--accent)]/15 text-[var(--accent)] ring-1 ring-[var(--ring)]"
+                : "text-[var(--muted)] hover:bg-white/5 hover:text-[var(--foreground)]"
+            )}>
+              Riwayat Pesanan
+            </a>
           </nav>
 
           <div className="border-t border-[var(--card-border)] pt-4">
@@ -215,6 +231,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   : "text-[var(--muted)] hover:bg-white/5 hover:text-[var(--foreground)]"
               )}>
                 Inventori
+              </a>
+              <a href="/orders" onClick={() => setMobileOpen(false)} className={clsx(
+                "flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors",
+                pathname === "/orders"
+                  ? "bg-[var(--accent)]/15 text-[var(--accent)] ring-1 ring-[var(--ring)]"
+                  : "text-[var(--muted)] hover:bg-white/5 hover:text-[var(--foreground)]"
+              )}>
+                Pesanan
+              </a>
+              <a href="/order-history" onClick={() => setMobileOpen(false)} className={clsx(
+                "flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors",
+                pathname === "/order-history"
+                  ? "bg-[var(--accent)]/15 text-[var(--accent)] ring-1 ring-[var(--ring)]"
+                  : "text-[var(--muted)] hover:bg-white/5 hover:text-[var(--foreground)]"
+              )}>
+                Riwayat Pesanan
               </a>
             </nav>
 

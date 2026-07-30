@@ -1,7 +1,5 @@
-import type { ObjectId } from "mongodb";
-
 export type ProductDoc = {
-  _id: ObjectId;
+  id: number;
   name: string;
   unit: string;
   stock: number;
@@ -22,7 +20,7 @@ export type SaleItem = {
 };
 
 export type SaleDoc = {
-  _id: ObjectId;
+  id: number;
   occurredAt: Date;
   items: SaleItem[];
   total: number;
@@ -37,7 +35,7 @@ export type StockOutItem = {
 };
 
 export type StockOutDoc = {
-  _id: ObjectId;
+  id: number;
   occurredAt: Date;
   items: StockOutItem[];
   reason?: string;
@@ -46,8 +44,8 @@ export type StockOutDoc = {
 };
 
 export type StockIntakeDoc = {
-  _id: ObjectId;
-  productId: ObjectId;
+  id: number;
+  productId: number;
   productName: string;
   quantity: number;
   costPerUnit: number;
@@ -70,4 +68,27 @@ export type ChartPoint = {
   label: string;
   revenue: number;
   transactions: number;
+};
+
+export type OrderItem = {
+  productId: string;
+  productName: string;
+  qty: number;
+  unitPrice: number;
+  subtotal: number;
+};
+
+export type Order = {
+  id: string;
+  orderNumber: string;
+  customerName: string | null;
+  customerPhone: string | null;
+  totalAmount: number;
+  paymentStatus: 'pending' | 'paid' | 'failed' | 'expired';
+  paymentMethod: string | null;
+  midtransTransactionId: string | null;
+  midtransPaymentType: string | null;
+  createdAt: string;
+  updatedAt: string;
+  items?: OrderItem[];
 };

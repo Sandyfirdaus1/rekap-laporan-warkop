@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import clientPromise from "@/lib/mongodb";
+import pool from "@/lib/mysql";
 import bcrypt from "bcryptjs";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
@@ -15,18 +15,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const client = await clientPromise;
-    const db = client.db(process.env.MONGODB_DB ?? "warkop");
-    const users = db.collection("users");
+    const [users] = await pool.query(
+      "SELECT id, username, password FROM users WHERE username = ?",
+      [username]
+    );
+    const userRows = users as any[];
 
-    // Find user
-    const user = await users.findOne({ username });
-    if (!user) {
+    if (userRows.length === 0) {
       return NextResponse.json(
         { error: "Username atau password salah" },
         { status: 401 }
       );
     }
+
+    const user = userRows[0];
 
     // Verify password
     const isValid = await bcrypt.compare(password, user.password);
@@ -42,7 +44,7 @@ export async function POST(request: NextRequest) {
       process.env.JWT_SECRET || "your-secret-key-change-this-in-production"
     );
 
-    const token = await new SignJWT({ userId: user._id, username: user.username })
+    const token = await new SignJWT({ userId: user.id, username: user.username })
       .setProtectedHeader({ alg: "HS256" })
       .setExpirationTime("10m")
       .sign(secret);
@@ -59,7 +61,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      user: { id: user._id, username: user.username },
+      user: { id: user.id, username: user.username },
     });
   } catch (error) {
     console.error("Login error:", error);
