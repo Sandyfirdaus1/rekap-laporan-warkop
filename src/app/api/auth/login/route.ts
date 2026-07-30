@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import pool from "@/lib/mysql";
+import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
@@ -15,20 +15,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const [users] = await pool.query(
-      "SELECT id, username, password FROM users WHERE username = ?",
-      [username]
-    );
-    const userRows = users as any[];
+    const user = await prisma.users.findUnique({
+      where: { username }
+    });
 
-    if (userRows.length === 0) {
+    if (!user) {
       return NextResponse.json(
         { error: "Username atau password salah" },
         { status: 401 }
       );
     }
-
-    const user = userRows[0];
 
     // Verify password
     const isValid = await bcrypt.compare(password, user.password);

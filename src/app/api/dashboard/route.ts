@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import pool from "@/lib/mysql";
+import { prisma } from "@/lib/prisma";
 import {
   formatDayKey,
   formatHourKey,
@@ -54,40 +54,35 @@ export async function GET(req: Request) {
       end = bounds.end;
     }
 
-    const [productsRows] = await pool.query(
-      "SELECT id, name, unit, stock, min_stock as minStock FROM products ORDER BY name ASC"
-    );
-    const products = productsRows as any[];
+    const products = await prisma.product.findMany({
+      orderBy: { name: 'asc' }
+    });
 
-    const [salesRows] = await pool.query(
-      "SELECT id, occurred_at as occurredAt, total FROM sales WHERE occurred_at >= ? AND occurred_at <= ? ORDER BY occurred_at ASC",
-      [start, end]
-    );
-    const sales = salesRows as any[];
+    const sales = await prisma.sale.findMany({
+      where: {
+        occurredAt: {
+          gte: start,
+          lte: end
+        }
+      },
+      orderBy: { occurredAt: 'asc' },
+      include: {
+        items: true
+      }
+    });
 
-    const [stockOutsRows] = await pool.query(
-      "SELECT id, occurred_at as occurredAt FROM stock_outs WHERE occurred_at >= ? AND occurred_at <= ? ORDER BY occurred_at ASC",
-      [start, end]
-    );
-    const stockOuts = stockOutsRows as any[];
-
-    // Get sale items for each sale
-    for (const sale of sales) {
-      const [itemsRows] = await pool.query(
-        "SELECT qty FROM sale_items WHERE sale_id = ?",
-        [sale.id]
-      );
-      sale.items = itemsRows as any[];
-    }
-
-    // Get stock out items for each stock out
-    for (const stockOut of stockOuts) {
-      const [itemsRows] = await pool.query(
-        "SELECT qty FROM stock_out_items WHERE stock_out_id = ?",
-        [stockOut.id]
-      );
-      stockOut.items = itemsRows as any[];
-    }
+    const stockOuts = await prisma.stockOut.findMany({
+      where: {
+        occurredAt: {
+          gte: start,
+          lte: end
+        }
+      },
+      orderBy: { occurredAt: 'asc' },
+      include: {
+        items: true
+      }
+    });
 
     const totalProducts = products.length;
     const available = products.filter((p) => p.stock > p.minStock);

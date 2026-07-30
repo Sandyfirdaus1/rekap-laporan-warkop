@@ -1,14 +1,12 @@
 import { NextResponse } from "next/server";
-import pool from "@/lib/mysql";
+import { prisma } from "@/lib/prisma";
 import type { ProductDoc } from "@/lib/types";
 
 export async function GET() {
   try {
-    const [rows] = await pool.query(
-      "SELECT id, name, unit, stock, min_stock as minStock, sell_price as sellPrice, created_at as createdAt, updated_at as updatedAt FROM products ORDER BY name ASC"
-    );
-    
-    const products = rows as any[];
+    const products = await prisma.product.findMany({
+      orderBy: { name: 'asc' }
+    });
     
     const body = products.map((p) => ({
       id: p.id.toString(),
@@ -17,8 +15,8 @@ export async function GET() {
       stock: p.stock,
       minStock: p.minStock,
       sellPrice: Math.round(Number(p.sellPrice)),
-      createdAt: p.createdAt.toISOString(),
-      updatedAt: p.updatedAt.toISOString(),
+      createdAt: p.createdAt?.toISOString() || new Date().toISOString(),
+      updatedAt: p.updatedAt?.toISOString() || new Date().toISOString(),
     }));
 
     return NextResponse.json(body);
@@ -41,13 +39,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Nama wajib diisi" }, { status: 400 });
     }
 
-    const [result] = await pool.query(
-      "INSERT INTO products (name, unit, stock, min_stock, purchase_price, sell_price) VALUES (?, ?, ?, ?, ?, ?)",
-      [name, unit, Math.max(0, Math.floor(stock)), Math.max(0, Math.floor(minStock)), 0, Math.max(0, sellPrice)]
-    );
+    const product = await prisma.product.create({
+      data: {
+        name,
+        unit,
+        stock: Math.max(0, Math.floor(stock)),
+        minStock: Math.max(0, Math.floor(minStock)),
+        purchasePrice: 0,
+        sellPrice: Math.max(0, sellPrice)
+      }
+    });
 
-    const insertResult = result as any;
-    return NextResponse.json({ id: insertResult.insertId.toString() }, { status: 201 });
+    return NextResponse.json({ id: product.id.toString() }, { status: 201 });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: "Gagal menambah produk" }, { status: 500 });

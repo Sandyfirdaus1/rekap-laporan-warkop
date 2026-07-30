@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import pool from "@/lib/mysql";
+import { prisma } from "@/lib/prisma";
 
 export async function POST(req: Request) {
   try {
@@ -23,28 +23,24 @@ export async function POST(req: Request) {
       }
 
       // Get product info
-      const [productRows] = await pool.query(
-        "SELECT id, name, sell_price, stock FROM products WHERE id = ?",
-        [productId]
-      );
-      const products = productRows as any[];
+      const product = await prisma.product.findUnique({
+        where: { id: productId }
+      });
       
-      if (products.length === 0) {
+      if (!product) {
         return NextResponse.json({ error: `Produk dengan ID ${productId} tidak ditemukan` }, { status: 400 });
       }
-
-      const product = products[0];
       
       if (product.stock < qty) {
         return NextResponse.json({ error: `Stok ${product.name} tidak cukup` }, { status: 400 });
       }
 
-      const subtotal = product.sell_price * qty;
+      const subtotal = Number(product.sellPrice) * qty;
       totalAmount += subtotal;
 
       itemDetails.push({
         id: product.id.toString(),
-        price: product.sell_price,
+        price: Number(product.sellPrice),
         quantity: qty,
         name: product.name,
       });
@@ -54,36 +50,43 @@ export async function POST(req: Request) {
     const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
     // Create order in database
-    const [orderResult] = await pool.query(
-      `INSERT INTO orders (order_number, customer_name, customer_phone, total_amount, payment_status) 
-       VALUES (?, ?, ?, ?, 'pending')`,
-      [orderNumber, customerName || null, customerPhone || null, totalAmount]
-    );
-    const insertOrder = orderResult as any;
-    const orderId = insertOrder.insertId;
+    const order = await prisma.order.create({
+      data: {
+        orderNumber,
+        customerName,
+        customerPhone,
+        totalAmount,
+        paymentStatus: 'pending'
+      }
+    });
 
     // Insert order items
     for (const item of items) {
       const productId = Number(item.productId);
       const qty = Number(item.qty);
       
-      const [productRows] = await pool.query(
-        "SELECT name, sell_price FROM products WHERE id = ?",
-        [productId]
-      );
-      const products = productRows as any[];
-      const product = products[0];
-      const subtotal = product.sell_price * qty;
+      const product = await prisma.product.findUnique({
+        where: { id: productId }
+      });
+      
+      if (product) {
+        const subtotal = Number(product.sellPrice) * qty;
 
-      await pool.query(
-        `INSERT INTO order_items (order_id, product_id, product_name, qty, unit_price, subtotal) 
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [orderId, productId, product.name, qty, product.sell_price, subtotal]
-      );
+        await prisma.orderItem.create({
+          data: {
+            orderId: order.id,
+            productId,
+            productName: product.name,
+            qty,
+            unitPrice: Number(product.sellPrice),
+            subtotal
+          }
+        });
+      }
     }
 
     return NextResponse.json({
-      orderId: orderId.toString(),
+      orderId: order.id.toString(),
       orderNumber,
       totalAmount,
     });
@@ -98,42 +101,36 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status");
 
-    let query = `
-      SELECT 
-        id,
-        order_number as orderNumber,
-        customer_name as customerName,
-        customer_phone as customerPhone,
-        total_amount as totalAmount,
-        payment_status as paymentStatus,
-        payment_method as paymentMethod,
-        midtrans_transaction_id as midtransTransactionId,
-        midtrans_payment_type as midtransPaymentType,
-        created_at as createdAt,
-        updated_at as updatedAt
-      FROM orders 
-      ORDER BY created_at DESC
-    `;
-    const params: any[] = [];
+    const where = status ? { paymentStatus: status as any } : {};
 
-    if (status) {
-      query += " WHERE payment_status = ?";
-      params.push(status);
-    }
-
-    const [rows] = await pool.query(query, params);
-    const orders = rows as any[];
+    const orders = await prisma.order.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        items: true
+      }
+    });
     
-    // Get order items for each order
-    for (const order of orders) {
-      const [itemsRows] = await pool.query(
-        "SELECT product_id as productId, product_name as productName, qty, unit_price as unitPrice, subtotal FROM order_items WHERE order_id = ?",
-        [order.id]
-      );
-      order.items = itemsRows as any[];
-    }
+    const formattedOrders = orders.map(order => ({
+      id: order.id,
+      orderNumber: order.orderNumber,
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      totalAmount: Number(order.totalAmount),
+      paymentStatus: order.paymentStatus,
+      paymentMethod: order.paymentMethod,
+      createdAt: order.createdAt?.toISOString(),
+      updatedAt: order.updatedAt?.toISOString(),
+      items: order.items.map(item => ({
+        productId: item.productId,
+        productName: item.productName,
+        qty: item.qty,
+        unitPrice: Number(item.unitPrice),
+        subtotal: Number(item.subtotal)
+      }))
+    }));
 
-    return NextResponse.json(orders);
+    return NextResponse.json(formattedOrders);
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: "Gagal mengambil pesanan" }, { status: 500 });

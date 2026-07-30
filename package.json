@@ -5,11 +5,13 @@
   "scripts": {
     "dev": "next dev",
     "dev:ipv4": "node --dns-result-order=ipv4first node_modules/next/dist/bin/next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@prisma/client": "^6.19.3",
     "@types/bcryptjs": "^2.4.6",
     "@types/cookie": "^0.6.0",
     "bcryptjs": "^3.0.3",
@@ -20,6 +22,7 @@
     "lucide-react": "^1.8.0",
     "mysql2": "^3.23.2",
     "next": "16.2.4",
+    "prisma": "^6.19.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "recharts": "^3.8.1",

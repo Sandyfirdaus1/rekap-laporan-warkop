@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import pool from "@/lib/mysql";
+import { prisma } from "@/lib/prisma";
 import {
   formatDayKey,
   formatHourKey,
@@ -40,21 +40,18 @@ export async function GET(req: Request) {
       end = bounds.end;
     }
 
-    const [salesRows] = await pool.query(
-      "SELECT id, occurred_at as occurredAt, total, created_at as createdAt FROM sales WHERE occurred_at >= ? AND occurred_at <= ? ORDER BY occurred_at ASC",
-      [start, end]
-    );
-
-    const sales = salesRows as any[];
-    
-    // Get sale items for each sale
-    for (const sale of sales) {
-      const [itemsRows] = await pool.query(
-        "SELECT product_id as productId, name, qty, unit_price as unitPrice, subtotal FROM sale_items WHERE sale_id = ?",
-        [sale.id]
-      );
-      sale.items = itemsRows as any[];
-    }
+    const sales = await prisma.sale.findMany({
+      where: {
+        occurredAt: {
+          gte: start,
+          lte: end
+        }
+      },
+      orderBy: { occurredAt: 'asc' },
+      include: {
+        items: true
+      }
+    });
 
     const totalRevenue = sales.reduce((s, x) => s + Number(x.total), 0);
 
@@ -97,11 +94,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const connection = await pool.getConnection();
-
   try {
-    await connection.beginTransaction();
-
     const body = await req.json();
     const rawItems = Array.isArray(body.items) ? body.items : [];
     const occurredAt = body.occurredAt ? new Date(body.occurredAt) : new Date();
@@ -127,70 +120,75 @@ export async function POST(req: Request) {
     let total = 0;
 
     for (const line of lines) {
-      const [products] = await connection.query(
-        "SELECT id, name, stock, sell_price as sellPrice FROM products WHERE id = ? FOR UPDATE",
-        [line.productId]
-      );
-      const productRows = products as any[];
+      const product = await prisma.product.findUnique({
+        where: { id: line.productId }
+      });
       
-      if (productRows.length === 0) {
-        await connection.rollback();
+      if (!product) {
         return NextResponse.json({ error: "Produk tidak ditemukan" }, { status: 400 });
       }
       
-      const p = productRows[0];
-      if (p.stock < line.qty) {
-        await connection.rollback();
+      if (product.stock < line.qty) {
         return NextResponse.json(
-          { error: `Stok "${p.name}" tidak mencukupi (tersisa ${p.stock})` },
+          { error: `Stok "${product.name}" tidak mencukupi (tersisa ${product.stock})` },
           { status: 400 }
         );
       }
       
-      const subtotal = line.qty * p.sellPrice;
+      const subtotal = line.qty * Number(product.sellPrice);
       total += subtotal;
       saleItems.push({
         productId: line.productId.toString(),
-        name: p.name,
+        name: product.name,
         qty: line.qty,
-        unitPrice: p.sellPrice,
+        unitPrice: Number(product.sellPrice),
         subtotal,
       });
     }
 
     const now = new Date();
     
-    // Insert sale
-    const [saleResult] = await connection.query(
-      "INSERT INTO sales (occurred_at, total) VALUES (?, ?)",
-      [occurredAt, total]
-    );
-    const saleInsertResult = saleResult as any;
-    const saleId = saleInsertResult.insertId;
+    // Use Prisma transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Insert sale
+      const sale = await tx.sale.create({
+        data: {
+          occurredAt,
+          total
+        }
+      });
 
-    // Insert sale items
-    for (const item of saleItems) {
-      await connection.query(
-        "INSERT INTO sale_items (sale_id, product_id, name, qty, unit_price, subtotal) VALUES (?, ?, ?, ?, ?, ?)",
-        [saleId, item.productId, item.name, item.qty, item.unitPrice, item.subtotal]
-      );
-    }
+      // Insert sale items
+      for (const item of saleItems) {
+        await tx.saleItem.create({
+          data: {
+            saleId: sale.id,
+            productId: Number(item.productId),
+            name: item.name,
+            qty: item.qty,
+            unitPrice: item.unitPrice,
+            subtotal: item.subtotal
+          }
+        });
+      }
 
-    // Update product stocks
-    for (const line of lines) {
-      await connection.query(
-        "UPDATE products SET stock = stock - ?, updated_at = ? WHERE id = ?",
-        [line.qty, now, line.productId]
-      );
-    }
+      // Update product stocks
+      for (const line of lines) {
+        await tx.product.update({
+          where: { id: line.productId },
+          data: {
+            stock: { decrement: line.qty },
+            updatedAt: now
+          }
+        });
+      }
 
-    await connection.commit();
-    return NextResponse.json({ ok: true, total }, { status: 201 });
+      return { saleId: sale.id, total };
+    });
+
+    return NextResponse.json({ ok: true, total: result.total }, { status: 201 });
   } catch (e) {
-    await connection.rollback();
     console.error(e);
     return NextResponse.json({ error: "Gagal menyimpan penjualan" }, { status: 500 });
-  } finally {
-    connection.release();
   }
 }

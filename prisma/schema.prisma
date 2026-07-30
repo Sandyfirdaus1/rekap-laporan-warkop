@@ -1,0 +1,130 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Product {
+  id            Int            @id @default(autoincrement())
+  name          String         @db.VarChar(255)
+  unit          String         @default("pcs") @db.VarChar(50)
+  stock         Int            @default(0)
+  minStock      Int            @default(5) @map("min_stock")
+  purchasePrice Decimal?       @default(0.00) @map("purchase_price") @db.Decimal(10, 2)
+  sellPrice     Decimal        @default(0.00) @map("sell_price") @db.Decimal(10, 2)
+  is_service    Boolean?       @default(false)
+  createdAt     DateTime?      @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt     DateTime?      @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
+  orderItems    OrderItem[]
+  saleItems     SaleItem[]
+  stockOutItems StockOutItem[]
+
+  @@index([name], map: "idx_name")
+  @@map("products")
+}
+
+model Sale {
+  id         Int        @id @default(autoincrement())
+  occurredAt DateTime   @map("occurred_at") @db.Timestamp(0)
+  total      Decimal    @db.Decimal(10, 2)
+  createdAt  DateTime?  @default(now()) @map("created_at") @db.Timestamp(0)
+  items      SaleItem[]
+
+  @@index([occurredAt], map: "idx_occurred_at")
+  @@map("sales")
+}
+
+model SaleItem {
+  id         Int       @id @default(autoincrement())
+  saleId     Int       @map("sale_id")
+  productId  Int       @map("product_id")
+  name       String    @db.VarChar(255)
+  qty        Int
+  unitPrice  Decimal   @map("unit_price") @db.Decimal(10, 2)
+  subtotal   Decimal   @db.Decimal(10, 2)
+  created_at DateTime? @default(now()) @db.Timestamp(0)
+  sale       Sale      @relation(fields: [saleId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "sale_items_ibfk_1")
+  product    Product   @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "sale_items_ibfk_2")
+
+  @@index([productId], map: "product_id")
+  @@index([saleId], map: "sale_id")
+  @@map("sale_items")
+}
+
+model StockOut {
+  id         Int            @id @default(autoincrement())
+  occurredAt DateTime       @map("occurred_at") @db.Timestamp(0)
+  reason     String?        @db.VarChar(255)
+  note       String?        @db.Text
+  createdAt  DateTime?      @default(now()) @map("created_at") @db.Timestamp(0)
+  items      StockOutItem[]
+
+  @@index([occurredAt], map: "idx_occurred_at")
+  @@map("stock_outs")
+}
+
+model StockOutItem {
+  id         Int       @id @default(autoincrement())
+  stockOutId Int       @map("stock_out_id")
+  productId  Int       @map("product_id")
+  name       String    @db.VarChar(255)
+  qty        Int
+  created_at DateTime? @default(now()) @db.Timestamp(0)
+  stockOut   StockOut  @relation(fields: [stockOutId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "stock_out_items_ibfk_1")
+  product    Product   @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "stock_out_items_ibfk_2")
+
+  @@index([productId], map: "product_id")
+  @@index([stockOutId], map: "stock_out_id")
+  @@map("stock_out_items")
+}
+
+model Order {
+  id            Int                    @id @default(autoincrement())
+  orderNumber   String                 @unique(map: "order_number") @map("order_number") @db.VarChar(50)
+  customerName  String?                @map("customer_name") @db.VarChar(255)
+  customerPhone String?                @map("customer_phone") @db.VarChar(20)
+  totalAmount   Decimal                @map("total_amount") @db.Decimal(10, 2)
+  paymentStatus orders_payment_status? @default(pending) @map("payment_status")
+  paymentMethod String?                @map("payment_method") @db.VarChar(50)
+  createdAt     DateTime?              @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt     DateTime?              @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
+  items         OrderItem[]
+
+  @@index([orderNumber], map: "idx_order_number")
+  @@index([paymentStatus], map: "idx_payment_status")
+  @@map("orders")
+}
+
+model OrderItem {
+  id          Int       @id @default(autoincrement())
+  orderId     Int       @map("order_id")
+  productId   Int       @map("product_id")
+  productName String    @map("product_name") @db.VarChar(255)
+  qty         Int
+  unitPrice   Decimal   @map("unit_price") @db.Decimal(10, 2)
+  subtotal    Decimal   @db.Decimal(10, 2)
+  created_at  DateTime? @default(now()) @db.Timestamp(0)
+  order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "order_items_ibfk_1")
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "order_items_ibfk_2")
+
+  @@index([orderId], map: "order_id")
+  @@index([productId], map: "product_id")
+  @@map("order_items")
+}
+
+model users {
+  id         Int       @id @default(autoincrement())
+  username   String    @unique(map: "username") @db.VarChar(255)
+  password   String    @db.VarChar(255)
+  created_at DateTime? @default(now()) @db.Timestamp(0)
+}
+
+enum orders_payment_status {
+  pending
+  paid
+  failed
+  expired
+}

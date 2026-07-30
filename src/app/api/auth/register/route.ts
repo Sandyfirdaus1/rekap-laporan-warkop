@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import pool from "@/lib/mysql";
+import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
 import { cookies } from "next/headers";
@@ -23,13 +23,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user already exists
-    const [existingUsers] = await pool.query(
-      "SELECT id FROM users WHERE username = ?",
-      [username]
-    );
-    const existingUserRows = existingUsers as any[];
+    const existingUser = await prisma.users.findUnique({
+      where: { username }
+    });
     
-    if (existingUserRows.length > 0) {
+    if (existingUser) {
       return NextResponse.json(
         { error: "Username sudah digunakan" },
         { status: 400 }
@@ -40,12 +38,13 @@ export async function POST(request: NextRequest) {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Create user
-    const [result] = await pool.query(
-      "INSERT INTO users (username, password) VALUES (?, ?)",
-      [username, hashedPassword]
-    );
-    const insertResult = result as any;
-    const userId = insertResult.insertId;
+    const user = await prisma.users.create({
+      data: {
+        username,
+        password: hashedPassword
+      }
+    });
+    const userId = user.id;
 
     // Generate JWT
     const secret = new TextEncoder().encode(

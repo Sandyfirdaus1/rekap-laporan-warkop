@@ -1,13 +1,13 @@
 # Rekap Warkop
 
-Aplikasi rekapitulasi warkop yang dibangun dengan Next.js, MongoDB, dan TypeScript.
+Aplikasi rekapitulasi warkop yang dibangun dengan Next.js, TiDB Cloud (MySQL-compatible), Prisma ORM, dan TypeScript.
 
 ## Getting Started
 
 ### Prerequisites
 
 - Node.js (v20 atau lebih baru)
-- MongoDB Atlas account (untuk database)
+- TiDB Cloud account (untuk database)
 - npm, yarn, pnpm, atau bun
 
 ### Installation
@@ -29,30 +29,55 @@ cp .env.example .env.local
 ```
 
 4. Edit `.env.local` dan isi dengan:
-- `MONGODB_URI`: MongoDB connection string dari MongoDB Atlas
-- `MONGODB_DB`: Nama database (default: warkop)
+- `DATABASE_URL`: TiDB Cloud connection string (format: `mysql://username:password@host:4000/database`)
 - `JWT_SECRET`: Secret key untuk JWT authentication (generate string yang kuat)
 
-5. Run development server:
+5. Setup database dengan Prisma:
+```bash
+npx prisma migrate dev
+```
+
+6. Run development server:
 ```bash
 npm run dev
 ```
 
-6. Buka [http://localhost:3000](http://localhost:3000) di browser.
+7. Buka [http://localhost:3000](http://localhost:3000) di browser.
 
 ## Environment Variables
 
 Lihat file `.env.example` untuk referensi environment variables yang dibutuhkan.
 
+## Database Setup dengan TiDB Cloud
+
+### 1. Buat TiDB Cloud Cluster
+
+1. Login ke [TiDB Cloud](https://tidbcloud.com/)
+2. Buat cluster baru (Serverless tier tersedia gratis)
+3. Tunggu cluster siap digunakan
+4. Buat database user dengan password
+5. Copy connection string dari dashboard
+
+### 2. Format Connection String
+
+TiDB Cloud menggunakan format MySQL connection string:
+```
+mysql://username:password@host:4000/database
+```
+
+Contoh:
+```
+mysql://root:password@xxx.tidbcloud.com:4000/warkop
+```
+
 ## Deploy on Vercel
 
 ### Langkah 1: Persiapan Database
 
-1. Login ke [MongoDB Atlas](https://www.mongodb.com/cloud/atlas)
-2. Buat cluster baru atau gunakan yang sudah ada
-3. Buat database user dengan password
-4. Whitelist IP address (pilih "Allow Access from Anywhere" untuk Vercel)
-5. Copy connection string (format: `mongodb+srv://username:password@cluster.mongodb.net/dbname`)
+1. Login ke [TiDB Cloud](https://tidbcloud.com/)
+2. Buat cluster atau gunakan yang sudah ada
+3. Pastikan cluster dalam status "Active"
+4. Copy connection string dari dashboard TiDB Cloud
 
 ### Langkah 2: Setup di Vercel
 
@@ -67,14 +92,14 @@ Lihat file `.env.example` untuk referensi environment variables yang dibutuhkan.
 Di dashboard Vercel project:
 1. Klik "Settings" → "Environment Variables"
 2. Tambahkan environment variables:
-   - `MONGODB_URI`: MongoDB connection string dari Atlas
-   - `MONGODB_DB`: warkop (atau nama database yang diinginkan)
+   - `DATABASE_URL`: TiDB Cloud connection string
    - `JWT_SECRET`: Generate string yang kuat (gunakan: `openssl rand -base64 32`)
+   - `NODE_ENV`: `production`
 
 ### Langkah 4: Deploy
 
 1. Klik "Deploy" di Vercel
-2. Tunggu proses build selesai
+2. Tunggu proses build selesai (termasuk Prisma generate)
 3. Aplikasi akan live dengan URL dari Vercel
 
 ### Deploy Menggunakan Vercel CLI
@@ -92,8 +117,43 @@ vercel login
 vercel
 ```
 
+## Development dengan Prisma
+
+### Generate Prisma Client
+```bash
+npx prisma generate
+```
+
+### Migrate Database
+```bash
+# Development migration
+npx prisma migrate dev --name migration_name
+
+# Production migration
+npx prisma migrate deploy
+```
+
+### View Database di Prisma Studio
+```bash
+npx prisma studio
+```
+
+### Reset Database (Hati-hati: Menghapus semua data)
+```bash
+npx prisma migrate reset
+```
+
+## Project Structure
+
+- `src/app/api/` - API routes untuk products, sales, orders, auth
+- `src/lib/prisma.ts` - Prisma client configuration
+- `src/lib/types.ts` - TypeScript type definitions
+- `prisma/schema.prisma` - Database schema dengan Prisma
+- `prisma/migrations/` - Database migration files
+
 ## Learn More
 
 - [Next.js Documentation](https://nextjs.org/docs)
-- [MongoDB Atlas Documentation](https://docs.atlas.mongodb.com/)
+- [Prisma Documentation](https://www.prisma.io/docs)
+- [TiDB Cloud Documentation](https://docs.pingcap.com/tidbcloud/)
 - [Vercel Deployment Documentation](https://vercel.com/docs)
