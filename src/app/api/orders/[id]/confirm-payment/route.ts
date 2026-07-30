@@ -13,81 +13,33 @@ export async function POST(
       return NextResponse.json({ error: "ID pesanan tidak valid" }, { status: 400 });
     }
 
-    // Use Prisma transaction
-    const result = await prisma.$transaction(async (tx) => {
-      // Check if order exists and get current status
-      const order = await tx.order.findUnique({
-        where: { id: orderId }
-      });
+    // Check if order exists
+    const order = await prisma.order.findUnique({
+      where: { id: orderId }
+    });
 
-      if (!order) {
-        throw new Error("Pesanan tidak ditemukan");
+    if (!order) {
+      return NextResponse.json({ error: "Pesanan tidak ditemukan" }, { status: 404 });
+    }
+
+    if (order.paymentStatus === 'paid') {
+      return NextResponse.json({ error: "Pesanan sudah dikonfirmasi pembayarannya" }, { status: 400 });
+    }
+
+    // Update payment status to 'paid'
+    const updatedOrder = await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        paymentStatus: 'paid',
+        updatedAt: new Date()
       }
-
-      if (order.paymentStatus === 'paid') {
-        throw new Error("Pesanan sudah dikonfirmasi pembayarannya");
-      }
-
-      // Get order items to update stock and create sale
-      const items = await tx.orderItem.findMany({
-        where: { orderId }
-      });
-
-      // Update stock for each item
-      for (const item of items) {
-        await tx.product.update({
-          where: { id: item.productId },
-          data: {
-            stock: { decrement: item.qty },
-            updatedAt: new Date()
-          }
-        });
-      }
-
-      // Create sale record for dashboard integration
-      const sale = await tx.sale.create({
-        data: {
-          occurredAt: order.createdAt || new Date(),
-          total: order.totalAmount
-        }
-      });
-
-      // Create sale items
-      for (const item of items) {
-        await tx.saleItem.create({
-          data: {
-            saleId: sale.id,
-            productId: item.productId,
-            name: item.productName,
-            qty: item.qty,
-            unitPrice: item.unitPrice,
-            subtotal: item.subtotal
-          }
-        });
-      }
-
-      // Update payment status to 'paid'
-      const updatedOrder = await tx.order.update({
-        where: { id: orderId },
-        data: {
-          paymentStatus: 'paid',
-          paymentMethod: 'QRIS',
-          updatedAt: new Date()
-        }
-      });
-
-      return {
-        success: true,
-        orderId: updatedOrder.id,
-        customerName: updatedOrder.customerName
-      };
     });
 
     return NextResponse.json({
       success: true,
       message: "Pembayaran berhasil dikonfirmasi",
-      orderId: result.orderId,
-      customerName: result.customerName
+      orderId: updatedOrder.id.toString(),
+      customerName: updatedOrder.customerName
     });
   } catch (e) {
     console.error(e);
