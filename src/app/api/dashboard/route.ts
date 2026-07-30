@@ -107,7 +107,8 @@ export async function GET(req: Request) {
 
     if (range === "today") {
       const dayKey = formatDayKey(start);
-      for (let h = 0; h < 24; h++) {
+      const currentHour = new Date().getHours();
+      for (let h = 0; h <= currentHour; h++) {
         const label = `${dayKey} ${String(h).padStart(2, "0")}:00`;
         chartMap.set(label, emptyBucket());
       }
@@ -155,7 +156,8 @@ export async function GET(req: Request) {
     let labels: string[];
     if (range === "today") {
       const dayKey = formatDayKey(start);
-      labels = Array.from({ length: 24 }, (_, h) => `${dayKey} ${String(h).padStart(2, "0")}:00`);
+      const currentHour = new Date().getHours();
+      labels = Array.from({ length: currentHour + 1 }, (_, h) => `${dayKey} ${String(h).padStart(2, "0")}:00`);
     } else if (range === "month") {
       const year = start.getFullYear();
       labels = [];
