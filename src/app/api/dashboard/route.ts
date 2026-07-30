@@ -21,13 +21,14 @@ function emptyBucket(): Bucket {
   return { revenue: 0, transactions: 0, qtySold: 0, qtyStockOut: 0 };
 }
 
-function mapProduct(p: ProductDoc) {
+function mapProduct(p: any) {
   return {
     id: p.id.toString(),
     name: p.name,
     unit: p.unit,
     stock: p.stock,
     minStock: p.minStock,
+    purchasePrice: p.purchasePrice ? Number(p.purchasePrice) : undefined,
   };
 }
 
