@@ -71,7 +71,7 @@ export async function POST(req: Request) {
       return badRequest("Tanggal tidak valid");
     }
 
-    const lines = parseQtyLines(body.items);
+    const lines = parseQtyLines(body.items, true);
     if (lines.length === 0) {
       return badRequest("Minimal satu item penjualan");
     }

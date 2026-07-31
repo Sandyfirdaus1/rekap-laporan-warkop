@@ -8,6 +8,7 @@ export type ProductDraft = {
   stock: string;
   minStock: string;
   sellPrice: string;
+  is_service: boolean;
 };
 
 /** Field nama/satuan/stok/min/harga yang dipakai form tambah dan form edit barang. */
@@ -18,6 +19,7 @@ export function ProductFields({
   stockLabel = "Stok",
   minStockLabel = "Min",
   priceFullWidth = false,
+  serviceCheckboxId,
 }: {
   draft: ProductDraft;
   onChange: (patch: Partial<ProductDraft>) => void;
@@ -25,6 +27,7 @@ export function ProductFields({
   stockLabel?: string;
   minStockLabel?: string;
   priceFullWidth?: boolean;
+  serviceCheckboxId: string;
 }) {
   return (
     <>
@@ -75,6 +78,18 @@ export function ProductFields({
           value={draft.sellPrice}
           onChange={(e) => onChange({ sellPrice: e.target.value })}
         />
+      </div>
+      <div className="sm:col-span-2 flex items-center gap-2">
+        <input
+          type="checkbox"
+          id={serviceCheckboxId}
+          checked={draft.is_service}
+          onChange={(e) => onChange({ is_service: e.target.checked })}
+          className="h-4 w-4 rounded border-[var(--card-border)] bg-[#0f0e0c] text-[var(--accent)] focus:ring-2 focus:ring-[var(--ring)]"
+        />
+        <label htmlFor={serviceCheckboxId} className="text-xs text-[var(--muted)]">
+          Jasa Seduh (harga bisa diinput manual saat transaksi)
+        </label>
       </div>
     </>
   );

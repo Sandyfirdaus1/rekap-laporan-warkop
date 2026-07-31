@@ -22,6 +22,7 @@ export function toProductJSON(p: Product): ProductJSON {
     stock: p.stock,
     minStock: p.minStock,
     sellPrice: Math.round(Number(p.sellPrice)),
+    is_service: p.is_service || false,
     createdAt: p.createdAt?.toISOString() ?? fallback,
     updatedAt: p.updatedAt?.toISOString() ?? fallback,
   };

@@ -15,6 +15,7 @@ type Product = {
   stock: number;
   minStock: number;
   sellPrice: number;
+  is_service?: boolean;
 };
 
 const emptyProduct: ProductDraft = {
@@ -23,6 +24,7 @@ const emptyProduct: ProductDraft = {
   stock: "0",
   minStock: "5",
   sellPrice: "0",
+  is_service: false,
 };
 
 function draftPayload(draft: ProductDraft) {
@@ -32,6 +34,7 @@ function draftPayload(draft: ProductDraft) {
     stock: Number(draft.stock),
     minStock: Number(draft.minStock),
     sellPrice: Number(draft.sellPrice),
+    is_service: draft.is_service,
   };
 }
 
@@ -143,6 +146,7 @@ export function InventoryClient() {
       stock: String(p.stock),
       minStock: String(p.minStock),
       sellPrice: String(p.sellPrice),
+      is_service: p.is_service || false,
     });
   };
 
@@ -198,6 +202,7 @@ export function InventoryClient() {
             namePlaceholder="Contoh: Kopi tubruk"
             stockLabel="Stok awal"
             minStockLabel="Batas minimum"
+            serviceCheckboxId="is_service"
           />
         </div>
         <button
@@ -224,7 +229,7 @@ export function InventoryClient() {
         </p>
         <div className="space-y-2">
           <QtyLineRows
-            products={items}
+            products={items.filter((p) => !p.is_service)}
             lines={outLines}
             onSetLine={setOutLine}
             onRemoveLine={removeOutLine}
@@ -287,6 +292,7 @@ export function InventoryClient() {
             <thead>
               <tr className="border-b border-[var(--card-border)] text-[var(--muted)]">
                 <th className="px-5 py-3 font-medium">Nama</th>
+                <th className="px-3 py-3 font-medium">Tipe</th>
                 <th className="px-3 py-3 font-medium">Stok</th>
                 <th className="px-3 py-3 font-medium">Min</th>
                 <th className="px-3 py-3 font-medium">Harga</th>
@@ -300,8 +306,19 @@ export function InventoryClient() {
                     {p.name}
                     <span className="ml-2 text-xs text-[var(--muted)]">{p.unit}</span>
                   </td>
-                  <td className="px-3 py-3 tabular-nums">{p.stock}</td>
-                  <td className="px-3 py-3 tabular-nums text-[var(--muted)]">{p.minStock}</td>
+                  <td className="px-3 py-3">
+                    {p.is_service ? (
+                      <span className="inline-flex items-center rounded-full bg-purple-500/10 px-2 py-0.5 text-xs font-medium text-purple-300">
+                        Jasa Seduh
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center rounded-full bg-blue-500/10 px-2 py-0.5 text-xs font-medium text-blue-300">
+                        Barang
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-3 py-3 tabular-nums">{p.is_service ? '-' : p.stock}</td>
+                  <td className="px-3 py-3 tabular-nums text-[var(--muted)]">{p.is_service ? '-' : p.minStock}</td>
                   <td className="px-3 py-3 tabular-nums text-emerald-300/90">{idr(p.sellPrice)}</td>
                   <td className="px-5 py-3 text-right">
                     <button
@@ -346,6 +363,7 @@ export function InventoryClient() {
                 draft={editDraft}
                 onChange={(patch) => setEditDraft((s) => ({ ...s, ...patch }))}
                 priceFullWidth
+                serviceCheckboxId="edit_is_service"
               />
               <div className="sm:col-span-2 mt-2 flex gap-2">
                 <button

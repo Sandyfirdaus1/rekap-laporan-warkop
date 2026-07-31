@@ -23,6 +23,7 @@ export async function POST(req: Request) {
     const stock = Number(body.stock ?? 0);
     const minStock = Number(body.minStock ?? 5);
     const sellPrice = Number(body.sellPrice ?? 0);
+    const is_service = Boolean(body.is_service ?? false);
 
     if (!name) {
       return badRequest("Nama wajib diisi");
@@ -35,7 +36,8 @@ export async function POST(req: Request) {
         stock: Math.max(0, Math.floor(stock)),
         minStock: Math.max(0, Math.floor(minStock)),
         purchasePrice: 0,
-        sellPrice: Math.max(0, sellPrice)
+        sellPrice: Math.max(0, sellPrice),
+        is_service
       }
     });
 
