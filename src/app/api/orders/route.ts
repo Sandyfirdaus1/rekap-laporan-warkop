@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/auth";
 
 export async function POST(req: Request) {
   try {
+    const auth = await requireAuth();
+    if (!auth.ok) return auth.response;
+
     const body = await req.json();
     const { items, customerName, customerPhone } = body;
 
@@ -98,6 +102,9 @@ export async function POST(req: Request) {
 
 export async function GET(req: Request) {
   try {
+    const auth = await requireAuth();
+    if (!auth.ok) return auth.response;
+
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status");
 

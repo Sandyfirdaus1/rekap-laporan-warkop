@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
+import { getJwtSecret } from "./lib/jwt";
 
 const publicPaths = ["/login", "/register", "/api/auth/login", "/api/auth/register"];
 
@@ -21,10 +22,7 @@ export async function proxy(request: NextRequest) {
   }
 
   try {
-    const secret = new TextEncoder().encode(
-      process.env.JWT_SECRET || "your-secret-key-change-this-in-production"
-    );
-    await jwtVerify(token, secret);
+    await jwtVerify(token, getJwtSecret());
     return NextResponse.next();
   } catch (error) {
     // Invalid token, redirect to login

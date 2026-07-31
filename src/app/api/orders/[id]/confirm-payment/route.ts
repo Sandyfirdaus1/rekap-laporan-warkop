@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/auth";
 
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireAuth();
+    if (!auth.ok) return auth.response;
+
     const { id } = await params;
     const orderId = Number(id);
 
@@ -43,7 +47,6 @@ export async function POST(
     });
   } catch (e) {
     console.error(e);
-    const errorMessage = e instanceof Error ? e.message : "Gagal mengkonfirmasi pembayaran";
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
+    return NextResponse.json({ error: "Gagal mengkonfirmasi pembayaran" }, { status: 500 });
   }
 }

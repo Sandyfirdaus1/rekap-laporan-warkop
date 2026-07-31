@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import { cookies } from "next/headers";
+import { getJwtSecret } from "@/lib/jwt";
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,11 +12,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ user: null }, { status: 401 });
     }
 
-    const secret = new TextEncoder().encode(
-      process.env.JWT_SECRET || "your-secret-key-change-this-in-production"
-    );
-
-    const { payload } = await jwtVerify(token, secret);
+    const { payload } = await jwtVerify(token, getJwtSecret());
 
     return NextResponse.json({
       user: {

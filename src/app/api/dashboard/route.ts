@@ -7,6 +7,7 @@ import {
   type RangePreset,
 } from "@/lib/date-range";
 import type { ProductDoc, SaleDoc, StockOutDoc } from "@/lib/types";
+import { requireAuth } from "@/lib/auth";
 
 const validPresets: RangePreset[] = ["today", "week", "month"];
 
@@ -34,6 +35,9 @@ function mapProduct(p: any) {
 
 export async function GET(req: Request) {
   try {
+    const auth = await requireAuth();
+    if (!auth.ok) return auth.response;
+
     const { searchParams } = new URL(req.url);
     const range = (searchParams.get("range") ?? "today") as RangePreset;
     const startDate = searchParams.get("startDate");
