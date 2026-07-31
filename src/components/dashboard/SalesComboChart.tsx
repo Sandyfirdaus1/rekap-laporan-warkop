@@ -34,27 +34,31 @@ export type ChartRow = {
 function shortLabel(full: string, mode: "today" | "week" | "month") {
   if (mode === "today") {
     const parts = full.split(" ");
-    const hm = parts[parts.length - 1]?.replace(":00", "") ?? full;
+    const hm = parts[parts.length - 1] ?? full;
     return hm;
   }
-  
-  if (mode === "month") {
-    // Parse YYYY-MM format
-    const [y, m] = full.split("-").map(Number);
+
+  if (!full) return "";
+
+  const parts = full.split("-").map(Number);
+  if (parts.length === 3) {
+    const [y, m, d] = parts;
+    if (mode === "week") {
+      const date = new Date(y, m - 1, d);
+      const days = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
+      return `${days[date.getDay()]} ${d}`;
+    }
+    if (mode === "month") {
+      return `${d}`;
+    }
+  }
+
+  if (parts.length === 2 && mode === "month") {
+    const [, m] = parts;
     const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-    return months[m - 1];
+    return months[m - 1] ?? full;
   }
-  
-  // Parse date from YYYY-MM-DD format (for week mode)
-  const [y, m, d] = full.split("-").map(Number);
-  const date = new Date(y, m - 1, d);
-  
-  if (mode === "week") {
-    const days = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
-    const dayIndex = date.getDay() === 0 ? 6 : date.getDay() - 1; // Convert Sunday (0) to 6, Monday (1) to 0, etc.
-    return days[dayIndex];
-  }
-  
+
   return full;
 }
 
@@ -76,10 +80,10 @@ export function SalesComboChart({
 }) {
   const [style, setStyle] = useState<ChartStyle>("combo");
   const [visible, setVisible] = useState<VisibleSeries>({
-    revenue: false,
-    transactions: false,
-    qtySold: false,
-    qtyStockOut: false,
+    revenue: true,
+    transactions: true,
+    qtySold: true,
+    qtyStockOut: true,
   });
 
   const toggleSeries = (key: keyof VisibleSeries) => {
@@ -97,7 +101,7 @@ export function SalesComboChart({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-[var(--muted)]">
           Pemasukan, transaksi jual, dan unit barang keluar (terjual + non-jual) per{" "}
-          {mode === "today" ? "jam" : mode === "week" ? "hari" : "bulan"}
+          {mode === "today" ? "jam" : mode === "week" ? "hari" : "tanggal"}
         </p>
         <div className="flex rounded-xl bg-black/25 p-0.5 ring-1 ring-[var(--card-border)]">
           {(
@@ -111,11 +115,10 @@ export function SalesComboChart({
               key={id}
               type="button"
               onClick={() => setStyle(id)}
-              className={`rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors sm:px-3 sm:text-xs ${
-                style === id
+              className={`rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors sm:px-3 sm:text-xs ${style === id
                   ? "bg-[var(--accent)]/20 text-[var(--accent)]"
                   : "text-[var(--muted)] hover:text-[var(--foreground)]"
-              }`}
+                }`}
             >
               {label}
             </button>
@@ -134,17 +137,16 @@ export function SalesComboChart({
             key={key}
             type="button"
             onClick={() => toggleSeries(key as keyof VisibleSeries)}
-            className={`flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] transition-colors sm:px-2.5 sm:text-xs ${
-              visible[key as keyof VisibleSeries]
-                ? "border-[var(--card-border)] bg-white/5 text-[var(--foreground)]"
-                : "border-transparent bg-black/25 text-[var(--muted)]"
-            }`}
+            className={`flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] transition-colors sm:px-2.5 sm:text-xs ${visible[key as keyof VisibleSeries]
+                ? "border-[var(--card-border)] bg-white/5 text-[var(--foreground)] font-medium"
+                : "border-transparent bg-black/25 text-[var(--muted)] opacity-60"
+              }`}
           >
             <div
-              className="h-3 w-3 rounded flex items-center justify-center"
+              className="h-3 w-3 rounded flex items-center justify-center transition-all"
               style={{ backgroundColor: visible[key as keyof VisibleSeries] ? color : "transparent", border: `1.5px solid ${color}` }}
             >
-              {visible[key as keyof VisibleSeries] && <Check className="h-2 w-2 text-white" />}
+              {visible[key as keyof VisibleSeries] && <Check className="h-2 w-2 text-white stroke-[3]" />}
             </div>
             {label}
           </button>
@@ -165,7 +167,8 @@ export function SalesComboChart({
               dataKey="label"
               tick={{ fill: "#9c8f7e", fontSize: 10 }}
               tickFormatter={(v) => shortLabel(String(v), mode)}
-              interval={0}
+              interval="preserveStartEnd"
+              minTickGap={12}
             />
             <YAxis
               yAxisId="rev"

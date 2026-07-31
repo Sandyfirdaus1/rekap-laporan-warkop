@@ -31,10 +31,6 @@ export function SalesHistory({
     onDateChange("");
   };
 
-  if (sales.length === 0 && !selectedDate) {
-    return null;
-  }
-
   return (
     <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)]/60 p-4 shadow-lg shadow-black/20 backdrop-blur-sm sm:p-5">
       <div className="flex items-center justify-between gap-2">

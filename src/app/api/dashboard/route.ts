@@ -60,45 +60,85 @@ export async function GET(req: Request) {
       end = bounds.end;
     }
 
-    const products = await prisma.product.findMany({
-      orderBy: { name: 'asc' }
-    });
-
-    const sales = await prisma.sale.findMany({
-      where: {
-        occurredAt: {
-          gte: start,
-          lte: end
-        }
-      },
-      orderBy: { occurredAt: 'asc' },
-      include: {
-        items: true
-      }
-    });
-
-    const stockOuts = await prisma.stockOut.findMany({
-      where: {
-        occurredAt: {
-          gte: start,
-          lte: end
-        }
-      },
-      orderBy: { occurredAt: 'asc' },
-      include: {
-        items: true
-      }
-    });
+    const [products, sales, paidOrders, stockOuts] = await Promise.all([
+      prisma.product.findMany({
+        orderBy: { name: 'asc' }
+      }),
+      prisma.sale.findMany({
+        where: {
+          occurredAt: { gte: start, lte: end }
+        },
+        orderBy: { occurredAt: 'asc' },
+        include: { items: true }
+      }),
+      prisma.order.findMany({
+        where: {
+          paymentStatus: 'paid',
+          updatedAt: { gte: start, lte: end }
+        },
+        orderBy: { updatedAt: 'asc' },
+        include: { items: true }
+      }),
+      prisma.stockOut.findMany({
+        where: {
+          occurredAt: { gte: start, lte: end }
+        },
+        orderBy: { occurredAt: 'asc' },
+        include: { items: true }
+      })
+    ]);
 
     const totalProducts = products.length;
     const available = products.filter((p) => p.stock > p.minStock);
     const lowStock = products.filter((p) => p.stock > 0 && p.stock <= p.minStock);
     const outOfStock = products.filter((p) => p.stock === 0);
 
-    const totalRevenue = sales.reduce((s, x) => s + Number(x.total), 0);
-    const transactionCount = sales.length;
+    type NormalizedSaleItem = {
+      productId: string;
+      name: string;
+      qty: number;
+      unitPrice: number;
+      subtotal: number;
+    };
 
-    const totalQtySold = sales.reduce(
+    type NormalizedSale = {
+      id: string;
+      occurredAt: Date;
+      total: number;
+      items: NormalizedSaleItem[];
+    };
+
+    const allSales: NormalizedSale[] = [
+      ...sales.map((s) => ({
+        id: `sale-${s.id}`,
+        occurredAt: s.occurredAt,
+        total: Number(s.total),
+        items: s.items.map((it) => ({
+          productId: it.productId.toString(),
+          name: it.name,
+          qty: it.qty,
+          unitPrice: Number(it.unitPrice),
+          subtotal: Number(it.subtotal),
+        })),
+      })),
+      ...paidOrders.map((o) => ({
+        id: `ord-${o.id}`,
+        occurredAt: o.updatedAt ?? o.createdAt ?? new Date(),
+        total: Number(o.totalAmount),
+        items: o.items.map((it) => ({
+          productId: it.productId.toString(),
+          name: it.productName,
+          qty: it.qty,
+          unitPrice: Number(it.unitPrice),
+          subtotal: Number(it.subtotal),
+        })),
+      })),
+    ];
+
+    const totalRevenue = allSales.reduce((s, x) => s + x.total, 0);
+    const transactionCount = allSales.length;
+
+    const totalQtySold = allSales.reduce(
       (s, sale) => s + sale.items.reduce((a, it) => a + it.qty, 0),
       0
     );
@@ -110,34 +150,28 @@ export async function GET(req: Request) {
 
     const chartMap = new Map<string, Bucket>();
 
-    if (range === "today") {
+    if (startDate || range === "today") {
       const dayKey = formatDayKey(start);
-      const currentHour = new Date().getHours();
-      for (let h = 0; h <= currentHour; h++) {
+      const isToday = !startDate && start.toDateString() === new Date().toDateString();
+      const maxHour = isToday ? new Date().getHours() : 23;
+      for (let h = 0; h <= maxHour; h++) {
         const label = `${dayKey} ${String(h).padStart(2, "0")}:00`;
         chartMap.set(label, emptyBucket());
       }
-    } else if (range === "month") {
-      // Initialize all 12 months for the current year
-      const year = start.getFullYear();
-      const monthNames = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-      for (let m = 0; m < 12; m++) {
-        chartMap.set(`${year}-${String(m + 1).padStart(2, "0")}`, emptyBucket());
+    } else {
+      // range === "week" or "month"
+      const cur = new Date(start);
+      while (cur <= end) {
+        chartMap.set(formatDayKey(cur), emptyBucket());
+        cur.setDate(cur.getDate() + 1);
       }
     }
 
-    for (const sale of sales) {
+    for (const sale of allSales) {
       const d = new Date(sale.occurredAt);
-      let key: string;
-      if (range === "today") {
-        key = formatHourKey(d);
-      } else if (range === "month") {
-        key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      } else {
-        key = formatDayKey(d);
-      }
+      const key = startDate || range === "today" ? formatHourKey(d) : formatDayKey(d);
       const cur = chartMap.get(key) ?? emptyBucket();
-      cur.revenue += Number(sale.total);
+      cur.revenue += sale.total;
       cur.transactions += 1;
       cur.qtySold += sale.items.reduce((a, it) => a + it.qty, 0);
       chartMap.set(key, cur);
@@ -145,38 +179,13 @@ export async function GET(req: Request) {
 
     for (const doc of stockOuts) {
       const d = new Date(doc.occurredAt);
-      let key: string;
-      if (range === "today") {
-        key = formatHourKey(d);
-      } else if (range === "month") {
-        key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      } else {
-        key = formatDayKey(d);
-      }
+      const key = startDate || range === "today" ? formatHourKey(d) : formatDayKey(d);
       const cur = chartMap.get(key) ?? emptyBucket();
       cur.qtyStockOut += doc.items.reduce((a, it) => a + it.qty, 0);
       chartMap.set(key, cur);
     }
 
-    let labels: string[];
-    if (range === "today") {
-      const dayKey = formatDayKey(start);
-      const currentHour = new Date().getHours();
-      labels = Array.from({ length: currentHour + 1 }, (_, h) => `${dayKey} ${String(h).padStart(2, "0")}:00`);
-    } else if (range === "month") {
-      const year = start.getFullYear();
-      labels = [];
-      for (let m = 0; m < 12; m++) {
-        labels.push(`${year}-${String(m + 1).padStart(2, "0")}`);
-      }
-    } else {
-      labels = [];
-      const cur = new Date(start);
-      while (cur <= end) {
-        labels.push(formatDayKey(cur));
-        cur.setDate(cur.getDate() + 1);
-      }
-    }
+    const labels = Array.from(chartMap.keys());
 
     const chart = labels.map((label) => {
       const v = chartMap.get(label) ?? emptyBucket();

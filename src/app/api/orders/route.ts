@@ -11,8 +11,6 @@ function isPaymentStatus(value: string): value is PaymentStatus {
   return (paymentStatuses as readonly string[]).includes(value);
 }
 
-type NewOrderItem = Omit<Prisma.OrderItemCreateManyInput, "orderId">;
-
 export async function POST(req: Request) {
   try {
     const body = await readJsonBody(req);
@@ -22,61 +20,110 @@ export async function POST(req: Request) {
 
     const method = body.paymentMethod === "cash" ? "cash" : "qris";
 
-    // Calculate total and validate items
+    const dbProducts = await prisma.product.findMany({
+      where: { id: { in: lines.map((line) => line.productId) } }
+    });
+    const productMap = new Map(dbProducts.map((p) => [p.id, p]));
+
+    type ValidatedLine = {
+      product: (typeof dbProducts)[number];
+      qty: number;
+      unitPrice: number;
+      subtotal: number;
+    };
+
     let totalAmount = 0;
-    const orderItems: NewOrderItem[] = [];
+    const validatedItems: ValidatedLine[] = [];
 
     for (const line of lines) {
-      const product = await prisma.product.findUnique({
-        where: { id: line.productId }
-      });
-
+      const product = productMap.get(line.productId);
       if (!product) {
         throw badRequest(`Produk dengan ID ${line.productId} tidak ditemukan`);
       }
 
-      if (product.stock < line.qty) {
-        throw badRequest(`Stok ${product.name} tidak cukup`);
+      if (!product.is_service && product.stock < line.qty) {
+        throw badRequest(`Stok ${product.name} tidak cukup (tersisa ${product.stock})`);
       }
 
       const unitPrice = Number(product.sellPrice);
       const subtotal = unitPrice * line.qty;
       totalAmount += subtotal;
 
-      orderItems.push({
-        productId: product.id,
-        productName: product.name,
+      validatedItems.push({
+        product,
         qty: line.qty,
         unitPrice,
-        subtotal,
+        subtotal
       });
     }
 
-    // Generate order number
     const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    const isPaid = method === "cash";
+    const now = new Date();
 
-    // Order dan itemnya harus tersimpan bersama; kalau item gagal, order ikut dibatalkan.
-    const order = await prisma.$transaction(async (tx) => {
-      const created = await tx.order.create({
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Create Order
+      const order = await tx.order.create({
         data: {
           orderNumber,
           customerName,
           customerPhone,
           totalAmount,
           paymentMethod: method,
-          paymentStatus: method === "cash" ? "paid" : "pending",
+          paymentStatus: isPaid ? "paid" : "pending",
         }
       });
 
+      // 2. Create Order Items
       await tx.orderItem.createMany({
-        data: orderItems.map((item) => ({ orderId: created.id, ...item })),
+        data: validatedItems.map((line) => ({
+          orderId: order.id,
+          productId: line.product.id,
+          productName: line.product.name,
+          qty: line.qty,
+          unitPrice: line.unitPrice,
+          subtotal: line.subtotal
+        }))
       });
 
-      return created;
+      // 3. If paid immediately (cash), create Sale and decrement stock
+      if (isPaid) {
+        const sale = await tx.sale.create({
+          data: {
+            occurredAt: now,
+            total: totalAmount
+          }
+        });
+
+        await tx.saleItem.createMany({
+          data: validatedItems.map((line) => ({
+            saleId: sale.id,
+            productId: line.product.id,
+            name: line.product.name,
+            qty: line.qty,
+            unitPrice: line.unitPrice,
+            subtotal: line.subtotal
+          }))
+        });
+
+        for (const line of validatedItems) {
+          if (!line.product.is_service) {
+            await tx.product.update({
+              where: { id: line.product.id },
+              data: {
+                stock: { decrement: line.qty },
+                updatedAt: now
+              }
+            });
+          }
+        }
+      }
+
+      return order;
     });
 
     return NextResponse.json({
-      orderId: order.id.toString(),
+      orderId: result.id.toString(),
       orderNumber,
       totalAmount,
     });
@@ -105,7 +152,7 @@ export async function GET(req: Request) {
         items: true
       }
     });
-    
+
     const formattedOrders = orders.map(order => ({
       id: order.id,
       orderNumber: order.orderNumber,

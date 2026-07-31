@@ -42,28 +42,62 @@ export async function GET(req: Request) {
       end = bounds.end;
     }
 
-    const sales = await prisma.sale.findMany({
-      where: {
-        occurredAt: {
-          gte: start,
-          lte: end
-        }
-      },
-      orderBy: { occurredAt: 'asc' },
-      include: {
-        items: true
-      }
-    });
+    const [sales, paidOrders] = await Promise.all([
+      prisma.sale.findMany({
+        where: {
+          occurredAt: { gte: start, lte: end }
+        },
+        orderBy: { occurredAt: 'desc' },
+        include: { items: true }
+      }),
+      prisma.order.findMany({
+        where: {
+          paymentStatus: 'paid',
+          updatedAt: { gte: start, lte: end }
+        },
+        orderBy: { updatedAt: 'desc' },
+        include: { items: true }
+      })
+    ]);
 
-    const totalRevenue = sales.reduce((s, x) => s + Number(x.total), 0);
+    const allSales = [
+      ...sales.map((s) => ({
+        id: `sale-${s.id}`,
+        occurredAt: s.occurredAt.toISOString(),
+        rawDate: s.occurredAt,
+        total: Number(s.total),
+        items: s.items.map((it) => ({
+          productId: it.productId.toString(),
+          name: it.name,
+          qty: it.qty,
+          unitPrice: Number(it.unitPrice),
+          subtotal: Number(it.subtotal),
+        })),
+      })),
+      ...paidOrders.map((o) => ({
+        id: `ord-${o.id}`,
+        occurredAt: (o.updatedAt ?? o.createdAt ?? new Date()).toISOString(),
+        rawDate: o.updatedAt ?? o.createdAt ?? new Date(),
+        total: Number(o.totalAmount),
+        items: o.items.map((it) => ({
+          productId: it.productId.toString(),
+          name: it.productName,
+          qty: it.qty,
+          unitPrice: Number(it.unitPrice),
+          subtotal: Number(it.subtotal),
+        })),
+      })),
+    ].sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime());
+
+    const totalRevenue = allSales.reduce((s, x) => s + x.total, 0);
 
     const chartMap = new Map<string, { revenue: number; transactions: number }>();
 
-    for (const sale of sales) {
-      const d = new Date(sale.occurredAt);
+    for (const sale of allSales) {
+      const d = new Date(sale.rawDate);
       const key = range === "today" ? formatHourKey(d) : formatDayKey(d);
       const cur = chartMap.get(key) ?? { revenue: 0, transactions: 0 };
-      cur.revenue += Number(sale.total);
+      cur.revenue += sale.total;
       cur.transactions += 1;
       chartMap.set(key, cur);
     }
@@ -80,13 +114,8 @@ export async function GET(req: Request) {
       start: start.toISOString(),
       end: end.toISOString(),
       totalRevenue,
-      transactionCount: sales.length,
-      sales: sales.map((s) => ({
-        id: s.id.toString(),
-        occurredAt: s.occurredAt.toISOString(),
-        total: Number(s.total),
-        items: s.items,
-      })),
+      transactionCount: allSales.length,
+      sales: allSales,
       chart,
     });
   } catch (e) {
