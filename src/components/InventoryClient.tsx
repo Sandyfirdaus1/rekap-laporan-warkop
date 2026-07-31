@@ -75,10 +75,7 @@ export function InventoryClient() {
   }, []);
 
   useEffect(() => {
-    const id = window.setTimeout(() => {
-      void load();
-    }, 0);
-    return () => window.clearTimeout(id);
+    void load();
   }, [load]);
 
   const createProduct = async (e: React.FormEvent) => {

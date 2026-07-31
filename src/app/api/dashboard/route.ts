@@ -179,32 +179,39 @@ export async function GET(req: Request) {
     }
     const paymentMethods = Array.from(paymentMethodsMap.values()).sort((a, b) => b.count - a.count);
 
+    const getWibDate = (date: Date) => {
+      return new Date(date.toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
+    };
+
     const chartMap = new Map<string, Bucket>();
 
     if (startDate || range === "today") {
-      const dayKey = formatDayKey(start);
-      const isToday = !startDate && start.toDateString() === new Date().toDateString();
-      const maxHour = isToday ? new Date().getHours() : 23;
+      const startWib = getWibDate(start);
+      const dayKey = formatDayKey(startWib);
+      const isToday = !startDate;
+      const maxHour = isToday ? getWibDate(new Date()).getHours() : 23;
       for (let h = 0; h <= maxHour; h++) {
         const label = `${dayKey} ${String(h).padStart(2, "0")}:00`;
         chartMap.set(label, emptyBucket());
       }
     } else if (range === "year") {
       for (let m = 0; m < 12; m++) {
-        const label = `${start.getFullYear()}-${String(m + 1).padStart(2, "0")}`;
+        const startWib = getWibDate(start);
+        const label = `${startWib.getFullYear()}-${String(m + 1).padStart(2, "0")}`;
         chartMap.set(label, emptyBucket());
       }
     } else {
       // range === "week" or "month"
-      const cur = new Date(start);
-      while (cur <= end) {
+      const cur = getWibDate(start);
+      const endWib = getWibDate(end);
+      while (cur <= endWib) {
         chartMap.set(formatDayKey(cur), emptyBucket());
         cur.setDate(cur.getDate() + 1);
       }
     }
 
     for (const sale of allSales) {
-      const d = new Date(sale.occurredAt);
+      const d = getWibDate(new Date(sale.occurredAt));
       const key = startDate || range === "today" ? formatHourKey(d) : range === "year" ? formatMonthKey(d) : formatDayKey(d);
       const cur = chartMap.get(key) ?? emptyBucket();
       cur.revenue += sale.total;
@@ -214,7 +221,7 @@ export async function GET(req: Request) {
     }
 
     for (const doc of stockOuts) {
-      const d = new Date(doc.occurredAt);
+      const d = getWibDate(new Date(doc.occurredAt));
       const key = startDate || range === "today" ? formatHourKey(d) : range === "year" ? formatMonthKey(d) : formatDayKey(d);
       const cur = chartMap.get(key) ?? emptyBucket();
       cur.qtyStockOut += doc.items.reduce((a: number, it: any) => a + it.qty, 0);

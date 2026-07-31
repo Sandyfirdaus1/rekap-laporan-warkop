@@ -29,13 +29,16 @@ export async function POST(
 
     const now = new Date();
 
+    const body = await req.json().catch(() => ({}));
+    const newPaymentMethod = body.paymentMethod;
+
     // Update payment status to 'paid', create Sale, and decrement stock
     const updatedOrder = await prisma.$transaction(async (tx) => {
       const orderRes = await tx.order.update({
         where: { id: orderId },
         data: {
           paymentStatus: 'paid',
-          paymentMethod: order.paymentMethod ?? 'qris',
+          paymentMethod: newPaymentMethod || order.paymentMethod || 'qris',
           updatedAt: now
         }
       });

@@ -30,8 +30,10 @@ export default function OrderHistoryPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "paid" | "pending">("all");
+  const [showPaymentMethodModal, setShowPaymentMethodModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
     fetchOrders();
@@ -69,16 +71,30 @@ export default function OrderHistoryPage() {
 
   const handlePayment = async (order: Order) => {
     setSelectedOrder(order);
-    setShowPaymentModal(true);
+    setShowPaymentMethodModal(true);
   };
 
-  const handleConfirmPayment = async () => {
+  const handleSelectPaymentMethod = async (method: "cash" | "qris") => {
     if (!selectedOrder) return;
 
+    if (method === "cash") {
+      setShowPaymentMethodModal(false);
+      await handleConfirmPayment("cash");
+    } else {
+      setShowPaymentMethodModal(false);
+      setShowPaymentModal(true);
+    }
+  };
+
+  const handleConfirmPayment = async (method: "cash" | "qris" = "qris") => {
+    if (!selectedOrder) return;
+
+    setProcessing(true);
     try {
       const res = await fetch(`/api/orders/${selectedOrder.id}/confirm-payment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentMethod: method }),
       });
 
       if (res.ok) {
@@ -93,6 +109,8 @@ export default function OrderHistoryPage() {
     } catch (error) {
       console.error('Payment confirmation error:', error);
       alert('Terjadi kesalahan saat mengkonfirmasi pembayaran');
+    } finally {
+      setProcessing(false);
     }
   };
 
@@ -266,6 +284,54 @@ export default function OrderHistoryPage() {
         </div>
       )}
 
+      {/* Payment Method Modal */}
+      {showPaymentMethodModal && selectedOrder && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--card)] rounded-2xl border border-[var(--card-border)] p-6 max-w-md w-full space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-[var(--foreground)]">Metode Pembayaran</h3>
+              <button
+                onClick={() => setShowPaymentMethodModal(false)}
+                className="text-[var(--muted)] hover:text-[var(--foreground)]"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-sm text-[var(--muted)]">
+              Pilih metode pembayaran untuk pesanan senilai{" "}
+              <span className="font-semibold text-[var(--accent)]">{idr(selectedOrder.totalAmount)}</span>
+            </p>
+
+            <div className="grid grid-cols-1 gap-3">
+              <button
+                onClick={() => handleSelectPaymentMethod("cash")}
+                disabled={processing}
+                className="flex items-center justify-between rounded-xl border border-[var(--card-border)] bg-white/5 px-4 py-4 text-left hover:border-[var(--accent)]/40 hover:bg-white/10 disabled:opacity-50 transition-colors"
+              >
+                <div>
+                  <p className="font-medium text-[var(--foreground)]">Cash</p>
+                  <p className="text-xs text-[var(--muted)] mt-0.5">Langsung bayar lunas</p>
+                </div>
+                <span className="text-2xl">💵</span>
+              </button>
+
+              <button
+                onClick={() => handleSelectPaymentMethod("qris")}
+                disabled={processing}
+                className="flex items-center justify-between rounded-xl border border-[var(--card-border)] bg-white/5 px-4 py-4 text-left hover:border-[var(--accent)]/40 hover:bg-white/10 disabled:opacity-50 transition-colors"
+              >
+                <div>
+                  <p className="font-medium text-[var(--foreground)]">QRIS</p>
+                  <p className="text-xs text-[var(--muted)] mt-0.5">Scan QR lalu konfirmasi pembayaran</p>
+                </div>
+                <span className="text-2xl">📱</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* QRIS Payment Modal */}
       {showPaymentModal && selectedOrder && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -317,10 +383,11 @@ export default function OrderHistoryPage() {
               <p className="text-sm font-medium text-[var(--foreground)] mb-3">Konfirmasi Pembayaran</p>
               <div className="flex gap-2">
                 <button
-                  onClick={handleConfirmPayment}
-                  className="flex-1 rounded-xl bg-green-600 px-4 py-3 text-sm font-medium text-white hover:bg-green-700 transition-colors"
+                  onClick={() => handleConfirmPayment("qris")}
+                  disabled={processing}
+                  className="flex-1 rounded-xl bg-green-600 px-4 py-3 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
                 >
-                  Sudah Bayar
+                  {processing ? "Memproses..." : "Sudah Bayar"}
                 </button>
                 <button
                   onClick={() => setShowPaymentModal(false)}
