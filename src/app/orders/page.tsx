@@ -35,7 +35,8 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [orderDetails, setOrderDetails] = useState<{ orderNumber: string; totalAmount: number; orderId: string } | null>(null);
+  const [showPaymentMethodModal, setShowPaymentMethodModal] = useState(false);
+  const [orderDetails, setOrderDetails] = useState<{ orderNumber: string; totalAmount: number; orderId: string; paymentMethod: "cash" | "qris" } | null>(null);
   const [showPriceModal, setShowPriceModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [customPrice, setCustomPrice] = useState("");
@@ -150,7 +151,7 @@ export default function OrdersPage() {
 
   const totalAmount = cart.reduce((sum, item) => sum + item.subtotal, 0);
 
-  const handleCheckout = async () => {
+  const handleCheckout = async (paymentMethod: "cash" | "qris") => {
     if (cart.length === 0) {
       alert("Keranjang masih kosong");
       return;
@@ -162,6 +163,7 @@ export default function OrdersPage() {
     }
 
     setProcessing(true);
+    setShowPaymentMethodModal(false);
 
     try {
       const data = await sendJson<{ orderId: string; orderNumber: string; totalAmount: number }>(
@@ -171,21 +173,49 @@ export default function OrdersPage() {
           items: cart,
           customerName: customerName.trim(),
           customerPhone: customerPhone.trim(),
+          paymentMethod,
         },
         "Gagal membuat pesanan"
       );
 
-      setOrderDetails({ orderNumber: data.orderNumber, totalAmount: data.totalAmount, orderId: data.orderId });
-      setShowPaymentModal(true);
       setCart([]);
       setCustomerName("");
       setCustomerPhone("");
+      fetchProducts();
+
+      if (paymentMethod === "cash") {
+        alert(`Pembayaran cash berhasil!\nPesanan ${data.orderNumber} sudah masuk ke riwayat pesanan.`);
+        setOrderDetails(null);
+        setShowPaymentModal(false);
+      } else {
+        setOrderDetails({
+          orderNumber: data.orderNumber,
+          totalAmount: data.totalAmount,
+          orderId: data.orderId,
+          paymentMethod: "qris",
+        });
+        setShowPaymentModal(true);
+      }
     } catch (error) {
       console.error("Checkout error:", error);
       alert(errorMessage(error, "Terjadi kesalahan saat checkout"));
     } finally {
       setProcessing(false);
     }
+  };
+
+  const openPaymentMethodModal = () => {
+    if (cart.length === 0) {
+      alert("Keranjang masih kosong");
+      return;
+    }
+
+    if (!customerName.trim()) {
+      alert("Mohon isi nama pelanggan");
+      return;
+    }
+
+    setShowPaymentMethodModal(true);
   };
 
   if (loading) {
@@ -351,7 +381,7 @@ export default function OrdersPage() {
                   </span>
                 </div>
                 <button
-                  onClick={handleCheckout}
+                  onClick={openPaymentMethodModal}
                   disabled={processing}
                   className="w-full flex items-center justify-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-3 text-sm font-medium text-[#1a1206] hover:bg-[var(--accent)]/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
@@ -418,6 +448,54 @@ export default function OrdersPage() {
                 className="flex-1 rounded-xl bg-[var(--card-border)] px-4 py-3 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--card-border)]/80 transition-colors"
               >
                 Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Method Modal */}
+      {showPaymentMethodModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--card)] rounded-2xl border border-[var(--card-border)] p-6 max-w-md w-full space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-[var(--foreground)]">Metode Pembayaran</h3>
+              <button
+                onClick={() => setShowPaymentMethodModal(false)}
+                className="text-[var(--muted)] hover:text-[var(--foreground)]"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-sm text-[var(--muted)]">
+              Pilih metode pembayaran untuk pesanan senilai{" "}
+              <span className="font-semibold text-[var(--accent)]">{idr(totalAmount)}</span>
+            </p>
+
+            <div className="grid grid-cols-1 gap-3">
+              <button
+                onClick={() => void handleCheckout("cash")}
+                disabled={processing}
+                className="flex items-center justify-between rounded-xl border border-[var(--card-border)] bg-white/5 px-4 py-4 text-left hover:border-[var(--accent)]/40 hover:bg-white/10 disabled:opacity-50 transition-colors"
+              >
+                <div>
+                  <p className="font-medium text-[var(--foreground)]">Cash</p>
+                  <p className="text-xs text-[var(--muted)] mt-0.5">Langsung masuk ke riwayat pesanan</p>
+                </div>
+                <span className="text-2xl">💵</span>
+              </button>
+
+              <button
+                onClick={() => void handleCheckout("qris")}
+                disabled={processing}
+                className="flex items-center justify-between rounded-xl border border-[var(--card-border)] bg-white/5 px-4 py-4 text-left hover:border-[var(--accent)]/40 hover:bg-white/10 disabled:opacity-50 transition-colors"
+              >
+                <div>
+                  <p className="font-medium text-[var(--foreground)]">QRIS</p>
+                  <p className="text-xs text-[var(--muted)] mt-0.5">Scan QR lalu konfirmasi pembayaran</p>
+                </div>
+                <span className="text-2xl">📱</span>
               </button>
             </div>
           </div>

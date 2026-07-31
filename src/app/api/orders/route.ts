@@ -7,12 +7,14 @@ import { badRequest, serverError } from "@/lib/api-response";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { items, customerName, customerPhone } = body;
+    const { items, customerName, customerPhone, paymentMethod } = body;
 
     const parsedLines = parseQtyLines(items);
     if (parsedLines.length === 0) {
       return badRequest("Item pesanan wajib diisi");
     }
+
+    const method = paymentMethod === "cash" ? "cash" : "qris";
 
     const resolved = await resolveStockLines(parsedLines);
     if ("error" in resolved) return badRequest(resolved.error);
@@ -28,7 +30,8 @@ export async function POST(req: Request) {
         customerName,
         customerPhone,
         totalAmount,
-        paymentStatus: 'pending'
+        paymentMethod: method,
+        paymentStatus: method === "cash" ? "paid" : "pending",
       }
     });
 
