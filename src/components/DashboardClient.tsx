@@ -10,15 +10,41 @@ import {
   ShoppingBag,
   TrendingUp,
   Wallet,
+  FileText,
 } from "lucide-react";
 import clsx from "clsx";
 import { SalesComboChart } from "@/components/dashboard/SalesComboChart";
+import { TopProductsChart } from "@/components/dashboard/TopProductsChart";
+import { PaymentMethodsChart } from "@/components/dashboard/PaymentMethodsChart";
 import { StockByStatusPanel } from "@/components/dashboard/StockByStatusPanel";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { SalesHistory } from "@/components/dashboard/SalesHistory";
 import { idr } from "@/lib/format";
 
-type Range = "today" | "week" | "month";
+function formatChartLabel(label: string, mode: "today" | "week" | "month" | "year") {
+  if (mode === "today") {
+    return label.split(" ")[1] || label; // e.g. "09:00"
+  }
+  if (mode === "week") {
+    const d = new Date(label);
+    if (isNaN(d.getTime())) return label;
+    return d.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "short", year: "numeric" });
+  }
+  if (mode === "month") {
+    const parts = label.split("-");
+    return parts.length === 3 ? `Tanggal ${parts[2]}` : label;
+  }
+  if (mode === "year") {
+    const parts = label.split("-");
+    if (parts.length === 2) {
+      const d = new Date(Number(parts[0]), Number(parts[1]) - 1, 1);
+      return d.toLocaleDateString("id-ID", { month: "long", year: "numeric" });
+    }
+  }
+  return label;
+}
+
+type Range = "today" | "week" | "month" | "year";
 
 type StockRow = {
   id: string;
@@ -45,6 +71,9 @@ type SalesResponse = {
   sales: Sale[];
 };
 
+type TopProduct = { name: string; qty: number; id: string };
+type PaymentMethodStat = { method: string; count: number; total: number };
+
 type DashboardPayload = {
   range: Range;
   stats: {
@@ -70,6 +99,8 @@ type DashboardPayload = {
     qtyStockOut: number;
     totalQtyOut: number;
   }[];
+  topProducts: TopProduct[];
+  paymentMethods: PaymentMethodStat[];
 };
 
 export function DashboardClient() {
@@ -121,54 +152,127 @@ export function DashboardClient() {
     if (!data) return;
     const XLSX = await import("xlsx");
     const { available, lowStock, outOfStock } = data.stockByStatus;
+    const lowStockList = [...lowStock, ...outOfStock];
+
     const rows = [
-      ["Warkop Sudi Mampir — Export Dashboard"],
-      ["Periode filter", range],
-      ["Total jenis barang (SKU)", data.stats.totalProducts],
-      ["Produk tersedia (stok > min)", data.stats.availableProducts],
-      ["Total pemasukan (periode)", data.stats.totalRevenue],
-      ["Jumlah transaksi jual (periode)", data.stats.transactionCount],
-      ["Unit terjual (qty)", data.stats.totalQtySold],
-      ["Unit keluar non-jual (qty)", data.stats.totalQtyStockOut],
-      ["Mutasi keluar non-jual (jumlah entri)", data.stats.stockOutTransactionCount],
-      ["Total unit keluar (terjual + non-jual)", data.stats.totalQtyOut],
+      ["Laporan Dashboard Sudi Mampir"],
+      ["Periode filter", `${range} ${selectedDate ? `(${selectedDate})` : ""}`],
       [],
-      [
-        "Grafik — Label",
-        "Pemasukan (IDR)",
-        "Transaksi jual",
-        "Qty terjual",
-        "Qty keluar non-jual",
-        "Total qty keluar",
-      ],
-      ...data.chart.map((c) => [
-        c.label,
-        c.revenue,
-        c.transactions,
-        c.qtySold,
-        c.qtyStockOut,
-        c.totalQtyOut,
-      ]),
+      ["Metrik", "Nilai"],
+      ["Total Pendapatan", data.stats.totalRevenue],
+      ["Jumlah Transaksi", data.stats.transactionCount],
+      ["Menu Terjual (qty)", data.stats.totalQtySold],
+      ["Barang Keluar Non-jual", data.stats.totalQtyStockOut],
+      ["Total Barang Keluar", data.stats.totalQtyOut],
       [],
-      ["Tersedia — Nama", "Stok", "Min"],
-      ...available.map((p) => [p.name, p.stock, p.minStock]),
+      ["Rincian Penjualan (" + (range === "today" ? "Per Jam" : range === "week" ? "Per Hari" : range === "month" ? "Per Tanggal" : "Per Bulan") + ")"],
+      ["Waktu", "Pendapatan"],
+      ...data.chart.map(c => [formatChartLabel(c.label, range), c.revenue]),
       [],
-      ["Hampir habis — Nama", "Stok", "Min"],
-      ...lowStock.map((p) => [p.name, p.stock, p.minStock]),
-      [],
-      ["Habis — Nama", "Stok", "Min"],
-      ...outOfStock.map((p) => [p.name, p.stock, p.minStock]),
+      ...(data.topProducts.length > 0 ? [
+        ["Menu Terlaris", "Terjual"],
+        ...data.topProducts.map((p) => [p.name, p.qty]),
+        []
+      ] : []),
+      ...(data.paymentMethods.length > 0 ? [
+        ["Metode Pembayaran", "Jumlah", "Total"],
+        ...data.paymentMethods.map((m) => [m.method, m.count, m.total]),
+        []
+      ] : []),
+      ...(lowStockList.length > 0 ? [
+        ["Peringatan Stok - Nama", "Sisa Stok", "Batas Min"],
+        ...lowStockList.map((s) => [s.name, s.stock, s.minStock]),
+        []
+      ] : [])
     ];
     const ws = XLSX.utils.aoa_to_sheet(rows);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Rekap");
-    XLSX.writeFile(wb, `rekap-sudi-mampir-${range}-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, "Laporan");
+    XLSX.writeFile(wb, `laporan-sudi-mampir-${range}-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  const exportPdf = async () => {
+    if (!data) return;
+    try {
+      const { jsPDF } = await import("jspdf");
+      const autoTable = (await import("jspdf-autotable")).default;
+      
+      const doc = new jsPDF();
+      doc.setFontSize(18);
+      doc.text("Laporan Dashboard Sudi Mampir", 14, 22);
+      
+      doc.setFontSize(11);
+      doc.text(`Periode: ${range} ${selectedDate ? `(${selectedDate})` : ""}`, 14, 30);
+      
+      autoTable(doc, {
+        startY: 36,
+        head: [["Metrik", "Nilai"]],
+        body: [
+          ["Total Pendapatan", idr(data.stats.totalRevenue)],
+          ["Jumlah Transaksi", data.stats.transactionCount],
+          ["Menu Terjual (qty)", data.stats.totalQtySold],
+          ["Barang Keluar Non-jual", data.stats.totalQtyStockOut],
+          ["Total Barang Keluar", data.stats.totalQtyOut],
+        ],
+      });
+
+      let finalY = (doc as any).lastAutoTable.finalY + 14;
+
+      if (data.chart.length > 0) {
+        if (finalY > 250) { doc.addPage(); finalY = 20; }
+        doc.text(`Rincian Penjualan (${range === "today" ? "Per Jam" : range === "week" ? "Per Hari" : range === "month" ? "Per Tanggal" : "Per Bulan"})`, 14, finalY);
+        autoTable(doc, {
+          startY: finalY + 6,
+          head: [["Waktu", "Pendapatan"]],
+          body: data.chart.map(c => [formatChartLabel(c.label, range), idr(c.revenue)]),
+        });
+        finalY = (doc as any).lastAutoTable.finalY + 14;
+      }
+
+      if (data.topProducts.length > 0) {
+        doc.text("Menu Terlaris", 14, finalY);
+        autoTable(doc, {
+          startY: finalY + 6,
+          head: [["Nama Menu", "Terjual"]],
+          body: data.topProducts.map(p => [p.name, p.qty]),
+        });
+        finalY = (doc as any).lastAutoTable.finalY + 14;
+      }
+
+      if (data.paymentMethods.length > 0) {
+        if (finalY > 250) { doc.addPage(); finalY = 20; }
+        doc.text("Metode Pembayaran", 14, finalY);
+        autoTable(doc, {
+          startY: finalY + 6,
+          head: [["Metode", "Jumlah", "Total"]],
+          body: data.paymentMethods.map(m => [m.method, m.count, idr(m.total)]),
+        });
+        finalY = (doc as any).lastAutoTable.finalY + 14;
+      }
+
+      const lowStockList = [...data.stockByStatus.lowStock, ...data.stockByStatus.outOfStock];
+      if (lowStockList.length > 0) {
+        if (finalY > 250) { doc.addPage(); finalY = 20; }
+        doc.text("Peringatan Stok", 14, finalY);
+        autoTable(doc, {
+          startY: finalY + 6,
+          head: [["Nama", "Sisa Stok", "Batas Min"]],
+          body: lowStockList.map(s => [s.name, s.stock, s.minStock]),
+        });
+      }
+
+      doc.save(`laporan-sudi-mampir-${range}-${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch (e) {
+      console.error(e);
+      alert("Gagal membuat PDF");
+    }
   };
 
   const rangeTabs: { id: Range; label: string; desc: string }[] = [
     { id: "today", label: "Harian", desc: "Hari ini" },
     { id: "week", label: "Mingguan", desc: "7 hari terakhir" },
     { id: "month", label: "Bulanan", desc: "Bulan berjalan" },
+    { id: "year", label: "Tahunan", desc: "Tahun ini (Jan-Des)" },
   ];
 
   return (
@@ -216,16 +320,30 @@ export function DashboardClient() {
                 </button>
               </div>
             )}
+            <div className="h-6 w-px bg-[var(--card-border)] mx-1 hidden sm:block"></div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void exportExcel()}
+                disabled={!data || loading}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-green-500/10 px-3 py-1.5 text-xs font-medium text-green-500 ring-1 ring-green-500/30 transition-colors hover:bg-green-500/20 disabled:opacity-50"
+                title="Export Excel"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Excel
+              </button>
+              <button
+                type="button"
+                onClick={() => void exportPdf()}
+                disabled={!data || loading}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-500 ring-1 ring-red-500/30 transition-colors hover:bg-red-500/20 disabled:opacity-50"
+                title="Export PDF"
+              >
+                <FileText className="h-3.5 w-3.5" />
+                PDF
+              </button>
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={() => void exportExcel()}
-            disabled={!data || loading}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-white/5 px-4 py-2 text-sm font-medium text-[var(--foreground)] ring-1 ring-[var(--card-border)] transition-colors hover:bg-white/10 disabled:opacity-50"
-          >
-            <Download className="h-4 w-4" />
-            Export Excel
-          </button>
         </div>
       </header>
 
@@ -281,25 +399,42 @@ export function DashboardClient() {
             />
           </section>
 
-          <SalesHistory sales={sales} selectedDate={selectedDate} onDateChange={setSelectedDate} />
+          <section className="flex flex-col gap-6 mt-8">
+            <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)]/50 p-4 shadow-xl backdrop-blur-sm sm:p-5">
+              <h2 className="font-display text-lg font-semibold mb-4 flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-[var(--accent)]" />
+                Grafik Penjualan
+              </h2>
+              <SalesComboChart data={data.chart} mode={range} />
+            </div>
 
-          <section className="grid grid-cols-1 gap-6 xl:grid-cols-5">
-            <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)]/50 p-4 shadow-xl backdrop-blur-sm sm:p-5 xl:col-span-3">
-              <h2 className="font-display text-lg font-semibold">Grafik penjualan &amp; barang keluar</h2>
-              <p className="mt-0.5 text-xs text-[var(--muted)]">
-                Batang: unit terjual + keluar non-jual. Garis: pemasukan &amp; transaksi jual.
-              </p>
-              <div className="mt-4">
-                <SalesComboChart data={data.chart} mode={range} />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)]/50 p-4 shadow-xl backdrop-blur-sm sm:p-5">
+                <h2 className="font-display text-lg font-semibold mb-4 flex items-center gap-2">
+                  <Package className="h-5 w-5 text-amber-500" />
+                  Menu Terlaris
+                </h2>
+                <TopProductsChart data={data.topProducts} />
+              </div>
+
+              <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)]/50 p-4 shadow-xl backdrop-blur-sm sm:p-5">
+                <h2 className="font-display text-lg font-semibold mb-4 flex items-center gap-2">
+                  <Wallet className="h-5 w-5 text-emerald-500" />
+                  Metode Pembayaran
+                </h2>
+                <PaymentMethodsChart data={data.paymentMethods} />
               </div>
             </div>
-            <div className="xl:col-span-2">
+
+            <div>
               <StockByStatusPanel
                 available={data.stockByStatus.available}
                 lowStock={data.stockByStatus.lowStock}
                 outOfStock={data.stockByStatus.outOfStock}
               />
             </div>
+            
+            <SalesHistory sales={sales} selectedDate={selectedDate} onDateChange={setSelectedDate} />
           </section>
         </>
       ) : null}

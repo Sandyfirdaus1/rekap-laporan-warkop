@@ -3,12 +3,13 @@ import { prisma } from "@/lib/prisma";
 import {
   formatDayKey,
   formatHourKey,
+  formatMonthKey,
   getRangeBounds,
   type RangePreset,
 } from "@/lib/date-range";
 import type { ProductDoc, SaleDoc, SaleItem } from "@/lib/types";
 
-const validPresets: RangePreset[] = ["today", "week", "month"];
+const validPresets: RangePreset[] = ["today", "week", "month", "year"];
 
 export async function GET(req: Request) {
   try {
@@ -93,7 +94,7 @@ export async function GET(req: Request) {
 
     for (const sale of allSales) {
       const d = new Date(sale.rawDate);
-      const key = range === "today" ? formatHourKey(d) : formatDayKey(d);
+      const key = range === "today" ? formatHourKey(d) : range === "year" ? formatMonthKey(d) : formatDayKey(d);
       const cur = chartMap.get(key) ?? { revenue: 0, transactions: 0 };
       cur.revenue += sale.total;
       cur.transactions += 1;

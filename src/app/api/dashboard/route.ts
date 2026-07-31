@@ -3,12 +3,13 @@ import { prisma } from "@/lib/prisma";
 import {
   formatDayKey,
   formatHourKey,
+  formatMonthKey,
   getRangeBounds,
   type RangePreset,
 } from "@/lib/date-range";
 import type { ProductDoc, SaleDoc, StockOutDoc } from "@/lib/types";
 
-const validPresets: RangePreset[] = ["today", "week", "month"];
+const validPresets: RangePreset[] = ["today", "week", "month", "year"];
 
 type Bucket = {
   revenue: number;
@@ -143,6 +144,41 @@ export async function GET(req: Request) {
     );
     const stockOutTransactionCount = stockOuts.length;
 
+    // Calculate Top Products
+    const productSalesMap = new Map<string, { id: string, name: string; qty: number }>();
+    for (const sale of allSales) {
+      for (const item of sale.items) {
+        const existing = productSalesMap.get(item.productId) || {
+          id: item.productId,
+          name: item.name,
+          qty: 0,
+        };
+        existing.qty += item.qty;
+        productSalesMap.set(item.productId, existing);
+      }
+    }
+    const topProducts = Array.from(productSalesMap.values())
+      .sort((a, b) => b.qty - a.qty)
+      .slice(0, 10);
+
+    // Calculate Payment Methods (from Orders mostly, Sales fallback to Cash)
+    const paymentMethodsMap = new Map<string, { method: string; count: number; total: number }>();
+    for (const sale of sales) {
+      const method = "Cash";
+      const current = paymentMethodsMap.get(method) || { method, count: 0, total: 0 };
+      current.count += 1;
+      current.total += Number(sale.total);
+      paymentMethodsMap.set(method, current);
+    }
+    for (const order of paidOrders) {
+      const method = order.paymentMethod || "Other";
+      const current = paymentMethodsMap.get(method) || { method, count: 0, total: 0 };
+      current.count += 1;
+      current.total += Number(order.totalAmount);
+      paymentMethodsMap.set(method, current);
+    }
+    const paymentMethods = Array.from(paymentMethodsMap.values()).sort((a, b) => b.count - a.count);
+
     const chartMap = new Map<string, Bucket>();
 
     if (startDate || range === "today") {
@@ -151,6 +187,11 @@ export async function GET(req: Request) {
       const maxHour = isToday ? new Date().getHours() : 23;
       for (let h = 0; h <= maxHour; h++) {
         const label = `${dayKey} ${String(h).padStart(2, "0")}:00`;
+        chartMap.set(label, emptyBucket());
+      }
+    } else if (range === "year") {
+      for (let m = 0; m < 12; m++) {
+        const label = `${start.getFullYear()}-${String(m + 1).padStart(2, "0")}`;
         chartMap.set(label, emptyBucket());
       }
     } else {
@@ -164,7 +205,7 @@ export async function GET(req: Request) {
 
     for (const sale of allSales) {
       const d = new Date(sale.occurredAt);
-      const key = startDate || range === "today" ? formatHourKey(d) : formatDayKey(d);
+      const key = startDate || range === "today" ? formatHourKey(d) : range === "year" ? formatMonthKey(d) : formatDayKey(d);
       const cur = chartMap.get(key) ?? emptyBucket();
       cur.revenue += sale.total;
       cur.transactions += 1;
@@ -174,7 +215,7 @@ export async function GET(req: Request) {
 
     for (const doc of stockOuts) {
       const d = new Date(doc.occurredAt);
-      const key = startDate || range === "today" ? formatHourKey(d) : formatDayKey(d);
+      const key = startDate || range === "today" ? formatHourKey(d) : range === "year" ? formatMonthKey(d) : formatDayKey(d);
       const cur = chartMap.get(key) ?? emptyBucket();
       cur.qtyStockOut += doc.items.reduce((a: number, it: any) => a + it.qty, 0);
       chartMap.set(key, cur);
@@ -214,6 +255,8 @@ export async function GET(req: Request) {
         outOfStock: outOfStock.map(mapProduct),
       },
       chart,
+      topProducts,
+      paymentMethods,
     });
   } catch (e) {
     console.error(e);

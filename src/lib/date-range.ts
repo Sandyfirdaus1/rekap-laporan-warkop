@@ -1,4 +1,4 @@
-export type RangePreset = "today" | "week" | "month";
+export type RangePreset = "today" | "week" | "month" | "year";
 
 /** Batas rentang waktu untuk filter (lokal server / deployment). Untuk WIB konsisten, set TZ di hosting atau gunakan offset tetap. */
 export function getRangeBounds(preset: RangePreset, now = new Date()) {
@@ -20,10 +20,14 @@ export function getRangeBounds(preset: RangePreset, now = new Date()) {
     // End on Sunday
     end.setDate(start.getDate() + 6);
     end.setHours(23, 59, 59, 999);
-  } else {
+  } else if (preset === "month") {
     start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
     return { start, end: monthEnd };
+  } else {
+    start = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
+    const yearEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
+    return { start, end: yearEnd };
   }
 
   return { start, end };
@@ -38,4 +42,10 @@ export function formatDayKey(d: Date) {
 
 export function formatHourKey(d: Date) {
   return `${formatDayKey(d)} ${String(d.getHours()).padStart(2, "0")}:00`;
+}
+
+export function formatMonthKey(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`;
 }
