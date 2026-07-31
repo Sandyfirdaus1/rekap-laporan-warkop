@@ -11,6 +11,7 @@ interface Product {
   unit: string;
   stock: number;
   sellPrice: number;
+  is_service?: boolean;
 }
 
 interface CartItem {
@@ -20,6 +21,8 @@ interface CartItem {
   price: number;
   subtotal: number;
   stock: number;
+  is_service?: boolean;
+  isCustomPrice?: boolean;
 }
 
 export default function OrdersPage() {
@@ -32,6 +35,9 @@ export default function OrdersPage() {
   const [processing, setProcessing] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [orderDetails, setOrderDetails] = useState<{ orderNumber: string; totalAmount: number; orderId: string } | null>(null);
+  const [showPriceModal, setShowPriceModal] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [customPrice, setCustomPrice] = useState("");
 
   useEffect(() => {
     void fetchProducts();
@@ -43,7 +49,7 @@ export default function OrdersPage() {
       const data = await fetchJson<Product[]>("/api/products", {
         fallbackMessage: "Gagal memuat produk",
       });
-      setProducts(data.filter((p) => p.stock > 0));
+      setProducts(data.filter((p) => p.stock > 0 || p.is_service));
     } catch (error) {
       setLoadError(errorMessage(error, "Gagal memuat produk"));
     } finally {
@@ -52,6 +58,15 @@ export default function OrdersPage() {
   };
 
   const addToCart = (product: Product) => {
+    // For service products, show price input modal
+    if (product.is_service) {
+      setSelectedProduct(product);
+      setCustomPrice(product.sellPrice.toString());
+      setShowPriceModal(true);
+      return;
+    }
+
+    // For regular products, add directly
     setCart((prev) => {
       const existing = prev.find((item) => item.productId === product.id);
       if (existing) {
@@ -71,8 +86,47 @@ export default function OrdersPage() {
         price: product.sellPrice,
         subtotal: product.sellPrice,
         stock: product.stock,
+        is_service: product.is_service,
+        isCustomPrice: false,
       }];
     });
+  };
+
+  const confirmAddToCart = () => {
+    if (!selectedProduct) return;
+
+    const price = parseFloat(customPrice) || 0;
+    if (price <= 0) {
+      alert("Harga harus lebih dari 0");
+      return;
+    }
+
+    setCart((prev) => {
+      const existing = prev.find((item) => item.productId === selectedProduct.id);
+      if (existing) {
+        // For service products, update price and increment quantity
+        return prev.map((item) =>
+          item.productId === selectedProduct.id
+            ? { ...item, qty: item.qty + 1, price: price, subtotal: (item.qty + 1) * price, isCustomPrice: true }
+            : item
+        );
+      }
+      // New item
+      return [...prev, {
+        productId: selectedProduct.id,
+        name: selectedProduct.name,
+        qty: 1,
+        price: price,
+        subtotal: price,
+        stock: selectedProduct.stock,
+        is_service: selectedProduct.is_service,
+        isCustomPrice: true,
+      }];
+    });
+
+    setShowPriceModal(false);
+    setSelectedProduct(null);
+    setCustomPrice("");
   };
 
   const updateQty = (productId: string, delta: number) => {
@@ -80,7 +134,10 @@ export default function OrdersPage() {
       return prev
         .map((item) => {
           if (item.productId === productId) {
-            const newQty = delta > 0 ? Math.min(item.stock, item.qty + delta) : Math.max(0, item.qty + delta);
+            // For service products, no stock limit
+            const newQty = item.is_service 
+              ? Math.max(0, item.qty + delta)
+              : (delta > 0 ? Math.min(item.stock, item.qty + delta) : Math.max(0, item.qty + delta));
             return { ...item, qty: newQty, subtotal: newQty * item.price };
           }
           return item;
@@ -184,20 +241,29 @@ export default function OrdersPage() {
                 >
                   <div className="flex justify-between items-start mb-3">
                     <div>
-                      <h3 className="font-medium text-[var(--foreground)]">{product.name}</h3>
-                      <p className="text-sm text-[var(--muted)]">Stok: {product.stock} {product.unit}</p>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-medium text-[var(--foreground)]">{product.name}</h3>
+                        {product.is_service && (
+                          <span className="px-2 py-0.5 text-xs font-medium bg-purple-100 text-purple-700 rounded-full">
+                            Jasa
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-[var(--muted)]">
+                        {product.is_service ? "Harga dapat diubah" : `Stok: ${product.stock} ${product.unit}`}
+                      </p>
                     </div>
                     <span className="text-lg font-semibold text-[var(--accent)]">
-                      {idr(product.sellPrice)}
+                      {product.is_service ? "Custom" : idr(product.sellPrice)}
                     </span>
                   </div>
                   <button
                     onClick={() => addToCart(product)}
-                    disabled={product.stock === 0}
+                    disabled={product.stock === 0 && !product.is_service}
                     className="w-full flex items-center justify-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-[#1a1206] hover:bg-[var(--accent)]/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     <Plus className="h-4 w-4" />
-                    Tambah
+                    {product.is_service ? "Input Harga" : "Tambah"}
                   </button>
                 </div>
               ))}
@@ -250,8 +316,18 @@ export default function OrdersPage() {
                 {cart.map((item) => (
                   <div key={item.productId} className="flex items-center justify-between gap-2">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-[var(--foreground)] truncate">{item.name}</p>
-                      <p className="text-xs text-[var(--muted)]">{idr(item.price)}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-[var(--foreground)] truncate">{item.name}</p>
+                        {item.is_service && (
+                          <span className="px-1.5 py-0.5 text-xs font-medium bg-purple-100 text-purple-700 rounded-full">
+                            Jasa
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-[var(--muted)]">
+                        {idr(item.price)}
+                        {item.isCustomPrice && " (custom)"}
+                      </p>
                     </div>
                     <div className="flex items-center gap-1">
                       <button
@@ -263,7 +339,7 @@ export default function OrdersPage() {
                       <span className="w-8 text-center text-sm font-medium text-[var(--foreground)]">{item.qty}</span>
                       <button
                         onClick={() => updateQty(item.productId, 1)}
-                        disabled={item.qty >= item.stock}
+                        disabled={!item.is_service && item.qty >= item.stock}
                         className="w-7 h-7 flex items-center justify-center rounded-lg bg-white/5 text-[var(--foreground)] hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                       >
                         <Plus className="h-3 w-3" />
@@ -301,6 +377,66 @@ export default function OrdersPage() {
           </div>
         </div>
       </div>
+
+      {/* Price Input Modal for Service Products */}
+      {showPriceModal && selectedProduct && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--card)] rounded-2xl border border-[var(--card-border)] p-6 max-w-md w-full space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-[var(--foreground)]">Input Harga Jasa</h3>
+              <button
+                onClick={() => {
+                  setShowPriceModal(false);
+                  setSelectedProduct(null);
+                  setCustomPrice("");
+                }}
+                className="text-[var(--muted)] hover:text-[var(--foreground)]"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <p className="text-sm text-[var(--muted)]">Nama Jasa</p>
+                <p className="font-medium text-[var(--foreground)]">{selectedProduct.name}</p>
+              </div>
+
+              <div>
+                <label className="text-sm text-[var(--muted)] block mb-2">Harga (Rp)</label>
+                <input
+                  type="number"
+                  value={customPrice}
+                  onChange={(e) => setCustomPrice(e.target.value)}
+                  placeholder="Masukkan harga"
+                  className="w-full px-4 py-3 rounded-xl border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50"
+                  min="0"
+                  step="100"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={confirmAddToCart}
+                className="flex-1 rounded-xl bg-[var(--accent)] px-4 py-3 text-sm font-medium text-[#1a1206] hover:bg-[var(--accent)]/90 transition-colors"
+              >
+                Tambah ke Keranjang
+              </button>
+              <button
+                onClick={() => {
+                  setShowPriceModal(false);
+                  setSelectedProduct(null);
+                  setCustomPrice("");
+                }}
+                className="flex-1 rounded-xl bg-[var(--card-border)] px-4 py-3 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--card-border)]/80 transition-colors"
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* QRIS Payment Modal */}
       {showPaymentModal && orderDetails && (

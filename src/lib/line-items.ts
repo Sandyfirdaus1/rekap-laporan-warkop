@@ -1,6 +1,6 @@
 import { badRequest } from "@/lib/api-error";
 
-export type LineItem = { productId: number; qty: number };
+export type LineItem = { productId: number; qty: number; unitPrice?: number };
 
 /**
  * Memvalidasi daftar item dari body permintaan. Baris yang tidak valid
@@ -17,7 +17,11 @@ export function parseLineItems(rawItems: unknown, emptyMessage: string): LineIte
       throw badRequest(`Item ke-${position} tidak valid`);
     }
 
-    const { productId, qty } = row as { productId?: unknown; qty?: unknown };
+    const { productId, qty, unitPrice } = row as {
+      productId?: unknown;
+      qty?: unknown;
+      unitPrice?: unknown;
+    };
     const parsedId = Number(productId);
     const parsedQty = Number(qty);
 
@@ -28,7 +32,16 @@ export function parseLineItems(rawItems: unknown, emptyMessage: string): LineIte
       throw badRequest(`Jumlah item ke-${position} harus bilangan bulat lebih dari 0`);
     }
 
-    return { productId: parsedId, qty: parsedQty };
+    if (unitPrice === undefined) {
+      return { productId: parsedId, qty: parsedQty };
+    }
+
+    const parsedPrice = Number(unitPrice);
+    if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
+      throw badRequest(`Harga item ke-${position} tidak valid`);
+    }
+
+    return { productId: parsedId, qty: parsedQty, unitPrice: parsedPrice };
   });
 }
 

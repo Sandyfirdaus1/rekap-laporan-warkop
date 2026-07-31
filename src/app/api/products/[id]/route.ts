@@ -48,6 +48,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
       if (!Number.isFinite(sellPrice)) throw badRequest("Harga jual harus berupa angka");
       updateData.sellPrice = Math.max(0, sellPrice);
     }
+    if (body.is_service !== undefined) {
+      updateData.is_service = Boolean(body.is_service);
+    }
 
     if (Object.keys(updateData).length === 0) {
       throw badRequest("Tidak ada field yang diupdate");

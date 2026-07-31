@@ -107,22 +107,25 @@ export async function POST(req: Request) {
       const product = await prisma.product.findUnique({
         where: { id: line.productId }
       });
-      
+
       if (!product) {
         throw badRequest(`Produk dengan ID ${line.productId} tidak ditemukan`);
       }
 
-      if (product.stock < line.qty) {
+      // For service products, skip stock check
+      if (!product.is_service && product.stock < line.qty) {
         throw badRequest(`Stok "${product.name}" tidak mencukupi (tersisa ${product.stock})`);
       }
-      
-      const subtotal = line.qty * Number(product.sellPrice);
+
+      // Use manual price if provided, otherwise use product's default price
+      const unitPrice = line.unitPrice !== undefined ? line.unitPrice : Number(product.sellPrice);
+      const subtotal = line.qty * unitPrice;
       total += subtotal;
       saleItems.push({
         productId: line.productId.toString(),
         name: product.name,
         qty: line.qty,
-        unitPrice: Number(product.sellPrice),
+        unitPrice,
         subtotal,
       });
     }
