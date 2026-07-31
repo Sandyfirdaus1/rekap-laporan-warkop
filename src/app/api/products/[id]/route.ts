@@ -34,6 +34,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
     if (body.sellPrice !== undefined) {
       updateData.sellPrice = Math.max(0, Number(body.sellPrice));
     }
+    if (body.is_service !== undefined) {
+      updateData.is_service = Boolean(body.is_service);
+    }
 
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json({ error: "Tidak ada field yang diupdate" }, { status: 400 });

@@ -102,13 +102,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Tanggal tidak valid" }, { status: 400 });
     }
 
-    type Line = { productId: number; qty: number };
+    type Line = { productId: number; qty: number; unitPrice?: number };
     const lines: Line[] = [];
     for (const row of rawItems) {
       const pid = Number(row.productId ?? 0);
       const qty = Math.floor(Number(row.qty ?? 0));
+      const unitPrice = row.unitPrice !== undefined ? Number(row.unitPrice) : undefined;
       if (pid > 0 && qty > 0) {
-        lines.push({ productId: pid, qty });
+        lines.push({ productId: pid, qty, unitPrice });
       }
     }
 
@@ -123,25 +124,28 @@ export async function POST(req: Request) {
       const product = await prisma.product.findUnique({
         where: { id: line.productId }
       });
-      
+
       if (!product) {
         return NextResponse.json({ error: "Produk tidak ditemukan" }, { status: 400 });
       }
-      
-      if (product.stock < line.qty) {
+
+      // For service products, skip stock check
+      if (!product.is_service && product.stock < line.qty) {
         return NextResponse.json(
           { error: `Stok "${product.name}" tidak mencukupi (tersisa ${product.stock})` },
           { status: 400 }
         );
       }
-      
-      const subtotal = line.qty * Number(product.sellPrice);
+
+      // Use manual price if provided, otherwise use product's default price
+      const unitPrice = line.unitPrice !== undefined ? line.unitPrice : Number(product.sellPrice);
+      const subtotal = line.qty * unitPrice;
       total += subtotal;
       saleItems.push({
         productId: line.productId.toString(),
         name: product.name,
         qty: line.qty,
-        unitPrice: Number(product.sellPrice),
+        unitPrice,
         subtotal,
       });
     }

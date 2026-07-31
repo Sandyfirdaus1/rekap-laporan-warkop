@@ -11,6 +11,7 @@ type Product = {
   stock: number;
   minStock: number;
   sellPrice: number;
+  is_service?: boolean;
 };
 
 const emptyProduct = {
@@ -19,6 +20,7 @@ const emptyProduct = {
   stock: "0",
   minStock: "5",
   sellPrice: "0",
+  is_service: false,
 };
 
 const STOCK_OUT_REASONS = [
@@ -47,6 +49,7 @@ export function InventoryClient() {
     stock: "0",
     minStock: "5",
     sellPrice: "0",
+    is_service: false,
   });
   const [editBusy, setEditBusy] = useState(false);
 
@@ -91,6 +94,7 @@ export function InventoryClient() {
           stock: Number(newP.stock),
           minStock: Number(newP.minStock),
           sellPrice: Number(newP.sellPrice),
+          is_service: newP.is_service,
         }),
       });
       const j = await res.json();
@@ -152,6 +156,7 @@ export function InventoryClient() {
       stock: String(p.stock),
       minStock: String(p.minStock),
       sellPrice: String(p.sellPrice),
+      is_service: p.is_service || false,
     });
   };
 
@@ -169,6 +174,7 @@ export function InventoryClient() {
           stock: Number(editDraft.stock),
           minStock: Number(editDraft.minStock),
           sellPrice: Number(editDraft.sellPrice),
+          is_service: editDraft.is_service,
         }),
       });
       const j = await res.json();
@@ -270,6 +276,18 @@ export function InventoryClient() {
               onChange={(e) => setNewP((s) => ({ ...s, sellPrice: e.target.value }))}
             />
           </div>
+          <div className="sm:col-span-2 flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="is_service"
+              checked={newP.is_service}
+              onChange={(e) => setNewP((s) => ({ ...s, is_service: e.target.checked }))}
+              className="h-4 w-4 rounded border-[var(--card-border)] bg-[#0f0e0c] text-[var(--accent)] focus:ring-2 focus:ring-[var(--ring)]"
+            />
+            <label htmlFor="is_service" className="text-xs text-[var(--muted)]">
+              Jasa Seduh (harga bisa diinput manual saat transaksi)
+            </label>
+          </div>
         </div>
         <button
           type="submit"
@@ -302,7 +320,7 @@ export function InventoryClient() {
                 className={inputClass}
               >
                 <option value="">Pilih barang</option>
-                {items.map((p) => (
+                {items.filter(p => !p.is_service).map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name} (stok {p.stock} {p.unit})
                   </option>
@@ -384,6 +402,7 @@ export function InventoryClient() {
             <thead>
               <tr className="border-b border-[var(--card-border)] text-[var(--muted)]">
                 <th className="px-5 py-3 font-medium">Nama</th>
+                <th className="px-3 py-3 font-medium">Tipe</th>
                 <th className="px-3 py-3 font-medium">Stok</th>
                 <th className="px-3 py-3 font-medium">Min</th>
                 <th className="px-3 py-3 font-medium">Harga</th>
@@ -397,8 +416,19 @@ export function InventoryClient() {
                     {p.name}
                     <span className="ml-2 text-xs text-[var(--muted)]">{p.unit}</span>
                   </td>
-                  <td className="px-3 py-3 tabular-nums">{p.stock}</td>
-                  <td className="px-3 py-3 tabular-nums text-[var(--muted)]">{p.minStock}</td>
+                  <td className="px-3 py-3">
+                    {p.is_service ? (
+                      <span className="inline-flex items-center rounded-full bg-purple-500/10 px-2 py-0.5 text-xs font-medium text-purple-300">
+                        Jasa Seduh
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center rounded-full bg-blue-500/10 px-2 py-0.5 text-xs font-medium text-blue-300">
+                        Barang
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-3 py-3 tabular-nums">{p.is_service ? '-' : p.stock}</td>
+                  <td className="px-3 py-3 tabular-nums text-[var(--muted)]">{p.is_service ? '-' : p.minStock}</td>
                   <td className="px-3 py-3 tabular-nums text-emerald-300/90">{idr(p.sellPrice)}</td>
                   <td className="px-5 py-3 text-right">
                     <button
@@ -485,6 +515,18 @@ export function InventoryClient() {
                   value={editDraft.sellPrice}
                   onChange={(e) => setEditDraft((s) => ({ ...s, sellPrice: e.target.value }))}
                 />
+              </div>
+              <div className="sm:col-span-2 flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="edit_is_service"
+                  checked={editDraft.is_service}
+                  onChange={(e) => setEditDraft((s) => ({ ...s, is_service: e.target.checked }))}
+                  className="h-4 w-4 rounded border-[var(--card-border)] bg-[#0f0e0c] text-[var(--accent)] focus:ring-2 focus:ring-[var(--ring)]"
+                />
+                <label htmlFor="edit_is_service" className="text-xs text-[var(--muted)]">
+                  Jasa Seduh (harga bisa diinput manual saat transaksi)
+                </label>
               </div>
               <div className="sm:col-span-2 mt-2 flex gap-2">
                 <button

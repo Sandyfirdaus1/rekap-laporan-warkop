@@ -7,6 +7,7 @@ export type ProductDoc = {
   /** Diset 0; tidak dipakai di UI. */
   purchasePrice?: number;
   sellPrice: number;
+  is_service?: boolean;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -60,6 +61,7 @@ export type ProductJSON = {
   stock: number;
   minStock: number;
   sellPrice: number;
+  is_service?: boolean;
   createdAt: string;
   updatedAt: string;
 };

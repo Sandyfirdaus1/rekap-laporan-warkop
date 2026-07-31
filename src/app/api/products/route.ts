@@ -15,6 +15,7 @@ export async function GET() {
       stock: p.stock,
       minStock: p.minStock,
       sellPrice: Math.round(Number(p.sellPrice)),
+      is_service: p.is_service || false,
       createdAt: p.createdAt?.toISOString() || new Date().toISOString(),
       updatedAt: p.updatedAt?.toISOString() || new Date().toISOString(),
     }));
@@ -34,6 +35,7 @@ export async function POST(req: Request) {
     const stock = Number(body.stock ?? 0);
     const minStock = Number(body.minStock ?? 5);
     const sellPrice = Number(body.sellPrice ?? 0);
+    const is_service = Boolean(body.is_service ?? false);
 
     if (!name) {
       return NextResponse.json({ error: "Nama wajib diisi" }, { status: 400 });
@@ -46,7 +48,8 @@ export async function POST(req: Request) {
         stock: Math.max(0, Math.floor(stock)),
         minStock: Math.max(0, Math.floor(minStock)),
         purchasePrice: 0,
-        sellPrice: Math.max(0, sellPrice)
+        sellPrice: Math.max(0, sellPrice),
+        is_service
       }
     });
 
