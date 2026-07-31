@@ -1,28 +1,17 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import type { ProductDoc } from "@/lib/types";
+import { toProductJSON } from "@/lib/serialize";
+import { badRequest, serverError } from "@/lib/api-response";
 
 export async function GET() {
   try {
     const products = await prisma.product.findMany({
       orderBy: { name: 'asc' }
     });
-    
-    const body = products.map((p) => ({
-      id: p.id.toString(),
-      name: p.name,
-      unit: p.unit,
-      stock: p.stock,
-      minStock: p.minStock,
-      sellPrice: Math.round(Number(p.sellPrice)),
-      createdAt: p.createdAt?.toISOString() || new Date().toISOString(),
-      updatedAt: p.updatedAt?.toISOString() || new Date().toISOString(),
-    }));
 
-    return NextResponse.json(body);
+    return NextResponse.json(products.map(toProductJSON));
   } catch (e) {
-    console.error(e);
-    return NextResponse.json({ error: "Gagal mengambil produk" }, { status: 500 });
+    return serverError(e, "Gagal mengambil produk");
   }
 }
 
@@ -36,7 +25,7 @@ export async function POST(req: Request) {
     const sellPrice = Number(body.sellPrice ?? 0);
 
     if (!name) {
-      return NextResponse.json({ error: "Nama wajib diisi" }, { status: 400 });
+      return badRequest("Nama wajib diisi");
     }
 
     const product = await prisma.product.create({
@@ -52,7 +41,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ id: product.id.toString() }, { status: 201 });
   } catch (e) {
-    console.error(e);
-    return NextResponse.json({ error: "Gagal menambah produk" }, { status: 500 });
+    return serverError(e, "Gagal menambah produk");
   }
 }

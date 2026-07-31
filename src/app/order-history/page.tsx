@@ -2,7 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { ShoppingCart, CheckCircle, Clock, XCircle, Search, Filter, CreditCard } from "lucide-react";
-import { idr } from "@/lib/format";
+import { dateTimeId, idr } from "@/lib/format";
+import { fetchJson } from "@/lib/api-client";
+import { confirmOrderPayment } from "@/lib/orders-client";
+import { QrisPaymentModal } from "@/components/QrisPaymentModal";
 
 interface OrderItem {
   productId: string;
@@ -57,9 +60,7 @@ export default function OrderHistoryPage() {
 
   const fetchOrders = async () => {
     try {
-      const res = await fetch("/api/orders");
-      const data = await res.json();
-      setOrders(data);
+      setOrders(await fetchJson<Order[]>("/api/orders"));
     } catch (error) {
       console.error("Failed to fetch orders:", error);
     } finally {
@@ -74,26 +75,11 @@ export default function OrderHistoryPage() {
 
   const handleConfirmPayment = async () => {
     if (!selectedOrder) return;
+    if (!(await confirmOrderPayment(selectedOrder.id))) return;
 
-    try {
-      const res = await fetch(`/api/orders/${selectedOrder.id}/confirm-payment`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      if (res.ok) {
-        alert('Pembayaran berhasil dikonfirmasi!');
-        setShowPaymentModal(false);
-        setSelectedOrder(null);
-        fetchOrders(); // Refresh orders to show updated status
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Gagal mengkonfirmasi pembayaran');
-      }
-    } catch (error) {
-      console.error('Payment confirmation error:', error);
-      alert('Terjadi kesalahan saat mengkonfirmasi pembayaran');
-    }
+    setShowPaymentModal(false);
+    setSelectedOrder(null);
+    fetchOrders();
   };
 
   const getStatusBadge = (status: string) => {
@@ -201,10 +187,7 @@ export default function OrderHistoryPage() {
                     </p>
                   )}
                   <p className="text-xs text-[var(--muted)] mt-1">
-                    {new Date(order.createdAt).toLocaleString("id-ID", {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                    })}
+                    {dateTimeId(order.createdAt)}
                   </p>
                 </div>
                 <div className="text-right">
@@ -247,73 +230,15 @@ export default function OrderHistoryPage() {
         </div>
       )}
 
-      {/* QRIS Payment Modal */}
       {showPaymentModal && selectedOrder && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[var(--card)] rounded-2xl border border-[var(--card-border)] p-6 max-w-md w-full space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-[var(--foreground)]">Pembayaran QRIS</h3>
-              <button
-                onClick={() => setShowPaymentModal(false)}
-                className="text-[var(--muted)] hover:text-[var(--foreground)]"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              <div className="text-center">
-                <p className="text-sm text-[var(--muted)]">Nomor Pesanan</p>
-                <p className="font-mono font-medium text-[var(--foreground)]">{selectedOrder.orderNumber}</p>
-              </div>
-
-              <div className="text-center">
-                <p className="text-sm text-[var(--muted)]">Total Pembayaran</p>
-                <p className="text-2xl font-bold text-[var(--accent)]">{idr(selectedOrder.totalAmount)}</p>
-              </div>
-
-              <div className="bg-white rounded-xl p-4 flex items-center justify-center">
-                <img
-                  src="/images/qris/qris.jpeg"
-                  alt="QRIS"
-                  className="max-w-[200px] h-auto"
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none';
-                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                  }}
-                />
-                <p className="hidden text-center text-sm text-red-500">
-                  Gambar QRIS belum tersedia.<br/>
-                  Silakan upload gambar QRIS ke folder:<br/>
-                  <code className="text-xs bg-gray-100 px-1 py-0.5 rounded">public/images/qris/qris.jpeg</code>
-                </p>
-              </div>
-
-              <p className="text-xs text-center text-[var(--muted)]">
-                Scan QRIS di atas untuk membayar
-              </p>
-            </div>
-
-            <div className="border-t border-[var(--card-border)] pt-4">
-              <p className="text-sm font-medium text-[var(--foreground)] mb-3">Konfirmasi Pembayaran</p>
-              <div className="flex gap-2">
-                <button
-                  onClick={handleConfirmPayment}
-                  className="flex-1 rounded-xl bg-green-600 px-4 py-3 text-sm font-medium text-white hover:bg-green-700 transition-colors"
-                >
-                  Sudah Bayar
-                </button>
-                <button
-                  onClick={() => setShowPaymentModal(false)}
-                  className="flex-1 rounded-xl bg-[var(--card-border)] px-4 py-3 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--card-border)]/80 transition-colors"
-                >
-                  Belum
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <QrisPaymentModal
+          orderNumber={selectedOrder.orderNumber}
+          totalAmount={selectedOrder.totalAmount}
+          onClose={() => setShowPaymentModal(false)}
+          onConfirm={handleConfirmPayment}
+        />
       )}
+
     </div>
   );
 }

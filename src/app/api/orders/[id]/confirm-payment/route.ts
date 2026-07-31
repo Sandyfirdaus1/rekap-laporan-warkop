@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { badRequest, notFound, serverError } from "@/lib/api-response";
 
 export async function POST(
   req: Request,
@@ -10,23 +11,21 @@ export async function POST(
     const orderId = Number(id);
 
     if (!orderId || isNaN(orderId)) {
-      return NextResponse.json({ error: "ID pesanan tidak valid" }, { status: 400 });
+      return badRequest("ID pesanan tidak valid");
     }
 
-    // Check if order exists
     const order = await prisma.order.findUnique({
       where: { id: orderId }
     });
 
     if (!order) {
-      return NextResponse.json({ error: "Pesanan tidak ditemukan" }, { status: 404 });
+      return notFound("Pesanan tidak ditemukan");
     }
 
     if (order.paymentStatus === 'paid') {
-      return NextResponse.json({ error: "Pesanan sudah dikonfirmasi pembayarannya" }, { status: 400 });
+      return badRequest("Pesanan sudah dikonfirmasi pembayarannya");
     }
 
-    // Update payment status to 'paid'
     const updatedOrder = await prisma.order.update({
       where: { id: orderId },
       data: {
@@ -42,8 +41,6 @@ export async function POST(
       customerName: updatedOrder.customerName
     });
   } catch (e) {
-    console.error(e);
-    const errorMessage = e instanceof Error ? e.message : "Gagal mengkonfirmasi pembayaran";
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
+    return serverError(e, "Gagal mengkonfirmasi pembayaran", { useErrorMessage: true });
   }
 }

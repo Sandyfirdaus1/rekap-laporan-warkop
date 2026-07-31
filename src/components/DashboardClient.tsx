@@ -17,6 +17,7 @@ import { StockByStatusPanel } from "@/components/dashboard/StockByStatusPanel";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { SalesHistory } from "@/components/dashboard/SalesHistory";
 import { idr } from "@/lib/format";
+import { errorMessage, fetchJson } from "@/lib/api-client";
 
 type Range = "today" | "week" | "month";
 
@@ -84,27 +85,20 @@ export function DashboardClient() {
     setLoading(true);
     setError(null);
     try {
-      const dashUrl = selectedDate
-        ? `/api/dashboard?startDate=${selectedDate}`
-        : `/api/dashboard?range=${range}`;
-      const salesUrl = selectedDate
-        ? `/api/sales?startDate=${selectedDate}`
-        : `/api/sales?range=${range}`;
+      const query = selectedDate ? `startDate=${selectedDate}` : `range=${range}`;
 
-      const [dashRes, salesRes] = await Promise.all([
-        fetch(dashUrl, { cache: "no-store" }),
-        fetch(salesUrl, { cache: "no-store" }),
+      const [dashJson, salesJson] = await Promise.all([
+        fetchJson<DashboardPayload>(`/api/dashboard?${query}`, {
+          cache: "no-store",
+          fallbackError: "Gagal memuat dashboard",
+        }),
+        fetchJson<SalesResponse>(`/api/sales?${query}`, { cache: "no-store" }).catch(() => null),
       ]);
-      if (!dashRes.ok) throw new Error("Gagal memuat dashboard");
-      const dashJson = (await dashRes.json()) as DashboardPayload;
-      setData(dashJson);
 
-      if (salesRes.ok) {
-        const salesJson = (await salesRes.json()) as SalesResponse;
-        setSales(salesJson.sales);
-      }
+      setData(dashJson);
+      if (salesJson) setSales(salesJson.sales);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Terjadi kesalahan");
+      setError(errorMessage(e, "Terjadi kesalahan"));
     } finally {
       setLoading(false);
     }

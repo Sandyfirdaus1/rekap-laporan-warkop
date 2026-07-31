@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
-import clsx from "clsx";
+import { BrandHeader, NavLinks, SidebarFooter } from "@/components/nav";
 import { LogOut } from "lucide-react";
 
 const IDLE_TIMEOUT = 10 * 60 * 1000; // 10 minutes in milliseconds
@@ -128,67 +128,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Desktop sidebar - fixed */}
       {!isAuthPage && (
         <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-[var(--card-border)] bg-[var(--card)]/80 px-4 py-6 backdrop-blur-md md:flex">
-          <div className="mb-10 flex items-center gap-3 px-2">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[var(--accent)] to-[var(--accent-dim)] text-[#1a1206] shadow-lg shadow-amber-900/30">
-              ☕
-            </span>
-            <div>
-              <p className="font-display text-lg font-semibold leading-tight text-[var(--foreground)]">
-                Sudi Mampir
-              </p>
-              <p className="text-xs text-[var(--muted)]">Rekap harian</p>
-            </div>
-          </div>
+          <BrandHeader className="mb-10 flex items-center gap-3 px-2" />
           <nav className="flex flex-1 flex-col gap-1">
-            <a href="/dashboard" className={clsx(
-              "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
-              pathname === "/dashboard"
-                ? "bg-[var(--accent)]/15 text-[var(--accent)] ring-1 ring-[var(--ring)]"
-                : "text-[var(--muted)] hover:bg-white/5 hover:text-[var(--foreground)]"
-            )}>
-              Dashboard
-            </a>
-            <a href="/inventory" className={clsx(
-              "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
-              pathname === "/inventory"
-                ? "bg-[var(--accent)]/15 text-[var(--accent)] ring-1 ring-[var(--ring)]"
-                : "text-[var(--muted)] hover:bg-white/5 hover:text-[var(--foreground)]"
-            )}>
-              Inventori
-            </a>
-            <a href="/orders" className={clsx(
-              "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
-              pathname === "/orders"
-                ? "bg-[var(--accent)]/15 text-[var(--accent)] ring-1 ring-[var(--ring)]"
-                : "text-[var(--muted)] hover:bg-white/5 hover:text-[var(--foreground)]"
-            )}>
-              Pesanan
-            </a>
-            <a href="/order-history" className={clsx(
-              "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
-              pathname === "/order-history"
-                ? "bg-[var(--accent)]/15 text-[var(--accent)] ring-1 ring-[var(--ring)]"
-                : "text-[var(--muted)] hover:bg-white/5 hover:text-[var(--foreground)]"
-            )}>
-              Riwayat Pesanan
-            </a>
+            <NavLinks pathname={pathname} paddingClass="px-3 py-2.5" />
           </nav>
 
-          <div className="border-t border-[var(--card-border)] pt-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-[var(--foreground)]">{user?.username}</p>
-                <p className="text-xs text-[var(--muted)]">Admin</p>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="rounded-lg p-2 text-[var(--muted)] hover:bg-white/5 hover:text-[var(--foreground)] transition-colors"
-                title="Logout"
-              >
-                <LogOut className="h-5 w-5" />
-              </button>
-            </div>
-          </div>
+          <SidebarFooter
+            username={user?.username}
+            onLogout={handleLogout}
+            className="border-t border-[var(--card-border)] pt-4"
+          />
         </aside>
       )}
 
@@ -204,70 +153,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {/* Mobile sidebar - inline, pushes content when open */}
         {!isAuthPage && mobileOpen && (
           <aside className="md:hidden w-full flex-shrink-0 flex-col border-r border-[var(--card-border)] bg-[#141210]/98 px-4 py-5">
-            <div className="mb-8 flex items-center gap-3 rounded-xl px-1 py-1">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[var(--accent)] to-[var(--accent-dim)] text-[#1a1206] shadow-lg shadow-amber-900/30">
-                ☕
-              </span>
-              <div>
-                <p className="font-display text-lg font-semibold leading-tight text-[var(--foreground)]">
-                  Sudi Mampir
-                </p>
-                <p className="text-xs text-[var(--muted)]">Rekap harian</p>
-              </div>
-            </div>
+            <BrandHeader className="mb-8 flex items-center gap-3 rounded-xl px-1 py-1" />
             <nav className="flex flex-col gap-1">
-              <a href="/dashboard" onClick={() => setMobileOpen(false)} className={clsx(
-                "flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors",
-                pathname === "/dashboard"
-                  ? "bg-[var(--accent)]/15 text-[var(--accent)] ring-1 ring-[var(--ring)]"
-                  : "text-[var(--muted)] hover:bg-white/5 hover:text-[var(--foreground)]"
-              )}>
-                Dashboard
-              </a>
-              <a href="/inventory" onClick={() => setMobileOpen(false)} className={clsx(
-                "flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors",
-                pathname === "/inventory"
-                  ? "bg-[var(--accent)]/15 text-[var(--accent)] ring-1 ring-[var(--ring)]"
-                  : "text-[var(--muted)] hover:bg-white/5 hover:text-[var(--foreground)]"
-              )}>
-                Inventori
-              </a>
-              <a href="/orders" onClick={() => setMobileOpen(false)} className={clsx(
-                "flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors",
-                pathname === "/orders"
-                  ? "bg-[var(--accent)]/15 text-[var(--accent)] ring-1 ring-[var(--ring)]"
-                  : "text-[var(--muted)] hover:bg-white/5 hover:text-[var(--foreground)]"
-              )}>
-                Pesanan
-              </a>
-              <a href="/order-history" onClick={() => setMobileOpen(false)} className={clsx(
-                "flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors",
-                pathname === "/order-history"
-                  ? "bg-[var(--accent)]/15 text-[var(--accent)] ring-1 ring-[var(--ring)]"
-                  : "text-[var(--muted)] hover:bg-white/5 hover:text-[var(--foreground)]"
-              )}>
-                Riwayat Pesanan
-              </a>
+              <NavLinks
+                pathname={pathname}
+                paddingClass="px-3 py-3"
+                onNavigate={() => setMobileOpen(false)}
+              />
             </nav>
 
-            <div className="border-t border-[var(--card-border)] pt-4 mt-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-[var(--foreground)]">{user?.username}</p>
-                  <p className="text-xs text-[var(--muted)]">Admin</p>
-                </div>
-                <button
-                  onClick={() => {
-                    handleLogout();
-                    setMobileOpen(false);
-                  }}
-                  className="rounded-lg p-2 text-[var(--muted)] hover:bg-white/5 hover:text-[var(--foreground)] transition-colors"
-                  title="Logout"
-                >
-                  <LogOut className="h-5 w-5" />
-                </button>
-              </div>
-            </div>
+            <SidebarFooter
+              username={user?.username}
+              onLogout={() => {
+                handleLogout();
+                setMobileOpen(false);
+              }}
+              className="border-t border-[var(--card-border)] pt-4 mt-4"
+            />
           </aside>
         )}
 

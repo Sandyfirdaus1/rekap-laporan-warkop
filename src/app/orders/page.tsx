@@ -3,6 +3,9 @@
 import { useState, useEffect } from "react";
 import { ShoppingCart, Plus, Minus, CreditCard, User, Phone, Coffee, Utensils } from "lucide-react";
 import { idr } from "@/lib/format";
+import { errorMessage, fetchJson, sendJson } from "@/lib/api-client";
+import { confirmOrderPayment } from "@/lib/orders-client";
+import { QrisPaymentModal } from "@/components/QrisPaymentModal";
 
 interface Product {
   id: string;
@@ -37,9 +40,8 @@ export default function OrdersPage() {
 
   const fetchProducts = async () => {
     try {
-      const res = await fetch("/api/products");
-      const data = await res.json();
-      setProducts(data.filter((p: Product) => p.stock > 0));
+      const data = await fetchJson<Product[]>("/api/products");
+      setProducts(data.filter((p) => p.stock > 0));
     } catch (error) {
       console.error("Failed to fetch products:", error);
     } finally {
@@ -105,30 +107,25 @@ export default function OrdersPage() {
     setProcessing(true);
 
     try {
-      const res = await fetch("/api/orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const data = await sendJson<{ orderId: string; orderNumber: string; totalAmount: number }>(
+        "/api/orders",
+        "POST",
+        {
           items: cart,
           customerName: customerName.trim(),
           customerPhone: customerPhone.trim(),
-        }),
-      });
+        },
+        "Gagal membuat pesanan"
+      );
 
-      const data = await res.json();
-
-      if (res.ok) {
-        setOrderDetails({ orderNumber: data.orderNumber, totalAmount: data.totalAmount, orderId: data.orderId });
-        setShowPaymentModal(true);
-        setCart([]);
-        setCustomerName("");
-        setCustomerPhone("");
-      } else {
-        alert(data.error || "Gagal membuat pesanan");
-      }
+      setOrderDetails({ orderNumber: data.orderNumber, totalAmount: data.totalAmount, orderId: data.orderId });
+      setShowPaymentModal(true);
+      setCart([]);
+      setCustomerName("");
+      setCustomerPhone("");
     } catch (error) {
       console.error("Checkout error:", error);
-      alert("Terjadi kesalahan saat checkout");
+      alert(errorMessage(error, "Terjadi kesalahan saat checkout"));
     } finally {
       setProcessing(false);
     }
@@ -291,95 +288,20 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {/* QRIS Payment Modal */}
       {showPaymentModal && orderDetails && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[var(--card)] rounded-2xl border border-[var(--card-border)] p-6 max-w-md w-full space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-[var(--foreground)]">Pembayaran QRIS</h3>
-              <button
-                onClick={() => setShowPaymentModal(false)}
-                className="text-[var(--muted)] hover:text-[var(--foreground)]"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              <div className="text-center">
-                <p className="text-sm text-[var(--muted)]">Nomor Pesanan</p>
-                <p className="font-mono font-medium text-[var(--foreground)]">{orderDetails.orderNumber}</p>
-              </div>
-
-              <div className="text-center">
-                <p className="text-sm text-[var(--muted)]">Total Pembayaran</p>
-                <p className="text-2xl font-bold text-[var(--accent)]">{idr(orderDetails.totalAmount)}</p>
-              </div>
-
-              <div className="bg-white rounded-xl p-4 flex items-center justify-center">
-                <img
-                  src="/images/qris/qris.jpeg"
-                  alt="QRIS"
-                  className="max-w-[200px] h-auto"
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none';
-                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                  }}
-                />
-                <p className="hidden text-center text-sm text-red-500">
-                  Gambar QRIS belum tersedia.<br/>
-                  Silakan upload gambar QRIS ke folder:<br/>
-                  <code className="text-xs bg-gray-100 px-1 py-0.5 rounded">public/images/qris/qris.jpeg</code>
-                </p>
-              </div>
-
-              <p className="text-xs text-center text-[var(--muted)]">
-                Scan QRIS di atas untuk membayar
-              </p>
-            </div>
-
-            <div className="border-t border-[var(--card-border)] pt-4">
-              <p className="text-sm font-medium text-[var(--foreground)] mb-3">Konfirmasi Pembayaran</p>
-              <div className="flex gap-2">
-                <button
-                  onClick={async () => {
-                    if (!orderDetails) return;
-                    
-                    try {
-                      const res = await fetch(`/api/orders/${orderDetails.orderId}/confirm-payment`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                      });
-                      
-                      if (res.ok) {
-                        alert('Pembayaran berhasil dikonfirmasi!');
-                        setShowPaymentModal(false);
-                        setOrderDetails(null);
-                        fetchProducts(); // Refresh products to show updated stock
-                      } else {
-                        const data = await res.json();
-                        alert(data.error || 'Gagal mengkonfirmasi pembayaran');
-                      }
-                    } catch (error) {
-                      console.error('Payment confirmation error:', error);
-                      alert('Terjadi kesalahan saat mengkonfirmasi pembayaran');
-                    }
-                  }}
-                  className="flex-1 rounded-xl bg-green-600 px-4 py-3 text-sm font-medium text-white hover:bg-green-700 transition-colors"
-                >
-                  Sudah Bayar
-                </button>
-                <button
-                  onClick={() => setShowPaymentModal(false)}
-                  className="flex-1 rounded-xl bg-[var(--card-border)] px-4 py-3 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--card-border)]/80 transition-colors"
-                >
-                  Belum
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <QrisPaymentModal
+          orderNumber={orderDetails.orderNumber}
+          totalAmount={orderDetails.totalAmount}
+          onClose={() => setShowPaymentModal(false)}
+          onConfirm={async () => {
+            if (!(await confirmOrderPayment(orderDetails.orderId))) return;
+            setShowPaymentModal(false);
+            setOrderDetails(null);
+            fetchProducts();
+          }}
+        />
       )}
+
     </div>
   );
 }

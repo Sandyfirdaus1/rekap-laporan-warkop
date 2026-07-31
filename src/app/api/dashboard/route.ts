@@ -1,14 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import {
-  formatDayKey,
-  formatHourKey,
-  getRangeBounds,
-  type RangePreset,
-} from "@/lib/date-range";
-import type { ProductDoc, SaleDoc, StockOutDoc } from "@/lib/types";
-
-const validPresets: RangePreset[] = ["today", "week", "month"];
+import { buildChartLabels, formatChartKey, resolveRangeParams } from "@/lib/date-range";
+import { toProductSummary } from "@/lib/serialize";
+import { badRequest, serverError } from "@/lib/api-response";
 
 type Bucket = {
   revenue: number;
@@ -21,39 +15,16 @@ function emptyBucket(): Bucket {
   return { revenue: 0, transactions: 0, qtySold: 0, qtyStockOut: 0 };
 }
 
-function mapProduct(p: any) {
-  return {
-    id: p.id.toString(),
-    name: p.name,
-    unit: p.unit,
-    stock: p.stock,
-    minStock: p.minStock,
-    purchasePrice: p.purchasePrice ? Number(p.purchasePrice) : undefined,
-  };
+function sumQty(items: { qty: number }[]) {
+  return items.reduce((a, it) => a + it.qty, 0);
 }
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const range = (searchParams.get("range") ?? "today") as RangePreset;
-    const startDate = searchParams.get("startDate");
-
-    let start: Date;
-    let end: Date;
-
-    if (startDate) {
-      start = new Date(startDate);
-      start.setHours(0, 0, 0, 0);
-      end = new Date(startDate);
-      end.setHours(23, 59, 59, 999);
-    } else {
-      if (!validPresets.includes(range)) {
-        return NextResponse.json({ error: "range tidak valid" }, { status: 400 });
-      }
-      const bounds = getRangeBounds(range);
-      start = bounds.start;
-      end = bounds.end;
-    }
+    const resolved = resolveRangeParams(searchParams);
+    if ("error" in resolved) return badRequest(resolved.error);
+    const { range, start, end } = resolved;
 
     const products = await prisma.product.findMany({
       orderBy: { name: 'asc' }
@@ -93,84 +64,30 @@ export async function GET(req: Request) {
     const totalRevenue = sales.reduce((s, x) => s + Number(x.total), 0);
     const transactionCount = sales.length;
 
-    const totalQtySold = sales.reduce(
-      (s, sale) => s + sale.items.reduce((a: number, it: any) => a + it.qty, 0),
-      0
-    );
-    const totalQtyStockOut = stockOuts.reduce(
-      (s, doc) => s + doc.items.reduce((a: number, it: any) => a + it.qty, 0),
-      0
-    );
+    const totalQtySold = sales.reduce((s, sale) => s + sumQty(sale.items), 0);
+    const totalQtyStockOut = stockOuts.reduce((s, doc) => s + sumQty(doc.items), 0);
     const stockOutTransactionCount = stockOuts.length;
 
+    const labels = buildChartLabels(range, start, end);
     const chartMap = new Map<string, Bucket>();
-
-    if (range === "today") {
-      const dayKey = formatDayKey(start);
-      const currentHour = new Date().getHours();
-      for (let h = 0; h <= currentHour; h++) {
-        const label = `${dayKey} ${String(h).padStart(2, "0")}:00`;
-        chartMap.set(label, emptyBucket());
-      }
-    } else if (range === "month") {
-      // Initialize all 12 months for the current year
-      const year = start.getFullYear();
-      const monthNames = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-      for (let m = 0; m < 12; m++) {
-        chartMap.set(`${year}-${String(m + 1).padStart(2, "0")}`, emptyBucket());
-      }
+    for (const label of labels) {
+      chartMap.set(label, emptyBucket());
     }
 
     for (const sale of sales) {
-      const d = new Date(sale.occurredAt);
-      let key: string;
-      if (range === "today") {
-        key = formatHourKey(d);
-      } else if (range === "month") {
-        key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      } else {
-        key = formatDayKey(d);
-      }
+      const key = formatChartKey(range, new Date(sale.occurredAt));
       const cur = chartMap.get(key) ?? emptyBucket();
       cur.revenue += Number(sale.total);
       cur.transactions += 1;
-      cur.qtySold += sale.items.reduce((a: number, it: any) => a + it.qty, 0);
+      cur.qtySold += sumQty(sale.items);
       chartMap.set(key, cur);
     }
 
     for (const doc of stockOuts) {
-      const d = new Date(doc.occurredAt);
-      let key: string;
-      if (range === "today") {
-        key = formatHourKey(d);
-      } else if (range === "month") {
-        key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      } else {
-        key = formatDayKey(d);
-      }
+      const key = formatChartKey(range, new Date(doc.occurredAt));
       const cur = chartMap.get(key) ?? emptyBucket();
-      cur.qtyStockOut += doc.items.reduce((a: number, it: any) => a + it.qty, 0);
+      cur.qtyStockOut += sumQty(doc.items);
       chartMap.set(key, cur);
-    }
-
-    let labels: string[];
-    if (range === "today") {
-      const dayKey = formatDayKey(start);
-      const currentHour = new Date().getHours();
-      labels = Array.from({ length: currentHour + 1 }, (_, h) => `${dayKey} ${String(h).padStart(2, "0")}:00`);
-    } else if (range === "month") {
-      const year = start.getFullYear();
-      labels = [];
-      for (let m = 0; m < 12; m++) {
-        labels.push(`${year}-${String(m + 1).padStart(2, "0")}`);
-      }
-    } else {
-      labels = [];
-      const cur = new Date(start);
-      while (cur <= end) {
-        labels.push(formatDayKey(cur));
-        cur.setDate(cur.getDate() + 1);
-      }
     }
 
     const chart = labels.map((label) => {
@@ -200,14 +117,13 @@ export async function GET(req: Request) {
         totalQtyOut: totalQtySold + totalQtyStockOut,
       },
       stockByStatus: {
-        available: available.map(mapProduct),
-        lowStock: lowStock.map(mapProduct),
-        outOfStock: outOfStock.map(mapProduct),
+        available: available.map(toProductSummary),
+        lowStock: lowStock.map(toProductSummary),
+        outOfStock: outOfStock.map(toProductSummary),
       },
       chart,
     });
   } catch (e) {
-    console.error(e);
-    return NextResponse.json({ error: "Gagal memuat dashboard" }, { status: 500 });
+    return serverError(e, "Gagal memuat dashboard");
   }
 }

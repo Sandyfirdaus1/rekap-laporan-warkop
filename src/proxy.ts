@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { jwtVerify } from "jose";
+import { AUTH_COOKIE, verifyAuthToken } from "@/lib/auth";
 
 const publicPaths = ["/login", "/register", "/api/auth/login", "/api/auth/register"];
 
@@ -13,7 +13,7 @@ export async function proxy(request: NextRequest) {
   }
 
   // Check for auth token
-  const token = request.cookies.get("auth-token")?.value;
+  const token = request.cookies.get(AUTH_COOKIE)?.value;
 
   if (!token) {
     // Redirect to login if no token
@@ -21,15 +21,12 @@ export async function proxy(request: NextRequest) {
   }
 
   try {
-    const secret = new TextEncoder().encode(
-      process.env.JWT_SECRET || "your-secret-key-change-this-in-production"
-    );
-    await jwtVerify(token, secret);
+    await verifyAuthToken(token);
     return NextResponse.next();
-  } catch (error) {
+  } catch {
     // Invalid token, redirect to login
     const response = NextResponse.redirect(new URL("/login", request.url));
-    response.cookies.delete("auth-token");
+    response.cookies.delete(AUTH_COOKIE);
     return response;
   }
 }

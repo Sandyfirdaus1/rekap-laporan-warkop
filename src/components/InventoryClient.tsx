@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, MinusCircle, Pencil, Plus, Trash2, PackagePlus } from "lucide-react";
 import { idr } from "@/lib/format";
+import { errorMessage, fetchJson, sendJson } from "@/lib/api-client";
+import { errorBannerClass, inputClass } from "@/lib/ui";
+import { QtyLineRows, type LineDraft } from "@/components/QtyLineRows";
+import { ProductFields, type ProductDraft } from "@/components/inventory/ProductFields";
 
 type Product = {
   id: string;
@@ -13,13 +17,23 @@ type Product = {
   sellPrice: number;
 };
 
-const emptyProduct = {
+const emptyProduct: ProductDraft = {
   name: "",
   unit: "pcs",
   stock: "0",
   minStock: "5",
   sellPrice: "0",
 };
+
+function draftPayload(draft: ProductDraft) {
+  return {
+    name: draft.name,
+    unit: draft.unit,
+    stock: Number(draft.stock),
+    minStock: Number(draft.minStock),
+    sellPrice: Number(draft.sellPrice),
+  };
+}
 
 const STOCK_OUT_REASONS = [
   "Rusak",
@@ -30,7 +44,6 @@ const STOCK_OUT_REASONS = [
   "Lainnya",
 ] as const;
 
-type OutLine = { productId: string; qty: string };
 
 export function InventoryClient() {
   const [items, setItems] = useState<Product[]>([]);
@@ -41,16 +54,10 @@ export function InventoryClient() {
   const [newBusy, setNewBusy] = useState(false);
 
   const [editing, setEditing] = useState<Product | null>(null);
-  const [editDraft, setEditDraft] = useState({
-    name: "",
-    unit: "pcs",
-    stock: "0",
-    minStock: "5",
-    sellPrice: "0",
-  });
+  const [editDraft, setEditDraft] = useState<ProductDraft>(emptyProduct);
   const [editBusy, setEditBusy] = useState(false);
 
-  const [outLines, setOutLines] = useState<OutLine[]>([{ productId: "", qty: "1" }]);
+  const [outLines, setOutLines] = useState<LineDraft[]>([{ productId: "", qty: "1" }]);
   const [outReason, setOutReason] = useState<string>(STOCK_OUT_REASONS[0]);
   const [outNote, setOutNote] = useState("");
   const [outBusy, setOutBusy] = useState(false);
@@ -60,12 +67,14 @@ export function InventoryClient() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/products", { cache: "no-store" });
-      if (!res.ok) throw new Error("Gagal memuat inventori");
-      const list = await res.json();
-      setItems(list);
+      setItems(
+        await fetchJson<Product[]>("/api/products", {
+          cache: "no-store",
+          fallbackError: "Gagal memuat inventori",
+        })
+      );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error");
+      setError(errorMessage(e, "Error"));
     } finally {
       setLoading(false);
     }
@@ -82,30 +91,18 @@ export function InventoryClient() {
     e.preventDefault();
     setNewBusy(true);
     try {
-      const res = await fetch("/api/products", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: newP.name,
-          unit: newP.unit,
-          stock: Number(newP.stock),
-          minStock: Number(newP.minStock),
-          sellPrice: Number(newP.sellPrice),
-        }),
-      });
-      const j = await res.json();
-      if (!res.ok) throw new Error(j.error ?? "Gagal");
+      await sendJson("/api/products", "POST", draftPayload(newP));
       setNewP(emptyProduct);
       await load();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Gagal");
+      alert(errorMessage(err));
     } finally {
       setNewBusy(false);
     }
   };
 
   const addOutLine = () => setOutLines((prev) => [...prev, { productId: "", qty: "1" }]);
-  const setOutLine = (i: number, patch: Partial<OutLine>) =>
+  const setOutLine = (i: number, patch: Partial<LineDraft>) =>
     setOutLines((prev) => prev.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
   const removeOutLine = (i: number) =>
     setOutLines((prev) => (prev.length <= 1 ? prev : prev.filter((_, idx) => idx !== i)));
@@ -122,23 +119,17 @@ export function InventoryClient() {
     }
     setOutBusy(true);
     try {
-      const res = await fetch("/api/stock-out", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          items: payloadItems,
-          reason: outReason,
-          note: outNote.trim() || undefined,
-        }),
+      const result = await sendJson<{ totalQty: number }>("/api/stock-out", "POST", {
+        items: payloadItems,
+        reason: outReason,
+        note: outNote.trim() || undefined,
       });
-      const j = await res.json();
-      if (!res.ok) throw new Error(j.error ?? "Gagal");
-      setOutMsg(`Tersimpan · Total ${j.totalQty} unit keluar`);
+      setOutMsg(`Tersimpan · Total ${result.totalQty} unit keluar`);
       setOutLines([{ productId: "", qty: "1" }]);
       setOutNote("");
       await load();
     } catch (err) {
-      setOutMsg(err instanceof Error ? err.message : "Gagal");
+      setOutMsg(errorMessage(err));
     } finally {
       setOutBusy(false);
     }
@@ -160,23 +151,11 @@ export function InventoryClient() {
     if (!editing) return;
     setEditBusy(true);
     try {
-      const res = await fetch(`/api/products/${editing.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: editDraft.name,
-          unit: editDraft.unit,
-          stock: Number(editDraft.stock),
-          minStock: Number(editDraft.minStock),
-          sellPrice: Number(editDraft.sellPrice),
-        }),
-      });
-      const j = await res.json();
-      if (!res.ok) throw new Error(j.error ?? "Gagal");
+      await sendJson(`/api/products/${editing.id}`, "PATCH", draftPayload(editDraft));
       setEditing(null);
       await load();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Gagal");
+      alert(errorMessage(err));
     } finally {
       setEditBusy(false);
     }
@@ -185,17 +164,12 @@ export function InventoryClient() {
   const remove = async (p: Product) => {
     if (!confirm(`Hapus "${p.name}" dari daftar?`)) return;
     try {
-      const res = await fetch(`/api/products/${p.id}`, { method: "DELETE" });
-      const j = await res.json();
-      if (!res.ok) throw new Error(j.error ?? "Gagal");
+      await sendJson(`/api/products/${p.id}`, "DELETE");
       await load();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Gagal");
+      alert(errorMessage(err));
     }
   };
-
-  const inputClass =
-    "w-full rounded-xl border border-[var(--card-border)] bg-[#0f0e0c] px-3 py-2 text-sm text-[var(--foreground)] outline-none focus:ring-2 focus:ring-[var(--ring)]";
 
   return (
     <div className="mx-auto max-w-6xl space-y-8">
@@ -206,11 +180,7 @@ export function InventoryClient() {
         </p>
       </header>
 
-      {error && (
-        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-          {error}
-        </div>
-      )}
+      {error && <div className={errorBannerClass}>{error}</div>}
 
       <div className="grid gap-6 lg:grid-cols-2">
       <form
@@ -222,54 +192,13 @@ export function InventoryClient() {
           Barang baru
         </h2>
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <label className="text-xs text-[var(--muted)]">Nama</label>
-            <input
-              className={inputClass}
-              value={newP.name}
-              onChange={(e) => setNewP((s) => ({ ...s, name: e.target.value }))}
-              required
-              placeholder="Contoh: Kopi tubruk"
-            />
-          </div>
-          <div>
-            <label className="text-xs text-[var(--muted)]">Satuan</label>
-            <input
-              className={inputClass}
-              value={newP.unit}
-              onChange={(e) => setNewP((s) => ({ ...s, unit: e.target.value }))}
-            />
-          </div>
-          <div>
-            <label className="text-xs text-[var(--muted)]">Stok awal</label>
-            <input
-              type="number"
-              min={0}
-              className={inputClass}
-              value={newP.stock}
-              onChange={(e) => setNewP((s) => ({ ...s, stock: e.target.value }))}
-            />
-          </div>
-          <div>
-            <label className="text-xs text-[var(--muted)]">Batas minimum</label>
-            <input
-              type="number"
-              min={0}
-              className={inputClass}
-              value={newP.minStock}
-              onChange={(e) => setNewP((s) => ({ ...s, minStock: e.target.value }))}
-            />
-          </div>
-          <div>
-            <label className="text-xs text-[var(--muted)]">Harga</label>
-            <input
-              type="number"
-              min={0}
-              className={inputClass}
-              value={newP.sellPrice}
-              onChange={(e) => setNewP((s) => ({ ...s, sellPrice: e.target.value }))}
-            />
-          </div>
+          <ProductFields
+            draft={newP}
+            onChange={(patch) => setNewP((s) => ({ ...s, ...patch }))}
+            namePlaceholder="Contoh: Kopi tubruk"
+            stockLabel="Stok awal"
+            minStockLabel="Batas minimum"
+          />
         </div>
         <button
           type="submit"
@@ -294,38 +223,12 @@ export function InventoryClient() {
           dashboard). Stok berkurang otomatis dan tampil di grafik dashboard.
         </p>
         <div className="space-y-2">
-          {outLines.map((line, i) => (
-            <div key={i} className="flex flex-wrap items-center gap-2">
-              <select
-                value={line.productId}
-                onChange={(e) => setOutLine(i, { productId: e.target.value })}
-                className={inputClass}
-              >
-                <option value="">Pilih barang</option>
-                {items.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} (stok {p.stock} {p.unit})
-                  </option>
-                ))}
-              </select>
-              <input
-                type="number"
-                min={1}
-                value={line.qty}
-                onChange={(e) => setOutLine(i, { qty: e.target.value })}
-                className="w-20 rounded-xl border border-[var(--card-border)] bg-[#0f0e0c] px-3 py-2 text-sm tabular-nums outline-none focus:ring-2 focus:ring-[var(--ring)]"
-              />
-              {outLines.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => removeOutLine(i)}
-                  className="rounded-xl px-2 text-xs text-red-300 hover:bg-red-500/10"
-                >
-                  Hapus
-                </button>
-              )}
-            </div>
-          ))}
+          <QtyLineRows
+            products={items}
+            lines={outLines}
+            onSetLine={setOutLine}
+            onRemoveLine={removeOutLine}
+          />
         </div>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <div className="sm:col-span-2">
@@ -439,53 +342,11 @@ export function InventoryClient() {
           >
             <h3 className="font-display text-xl font-semibold">Edit {editing.name}</h3>
             <form onSubmit={saveEdit} className="mt-4 grid gap-3 sm:grid-cols-2">
-              <div className="sm:col-span-2">
-                <label className="text-xs text-[var(--muted)]">Nama</label>
-                <input
-                  className={inputClass}
-                  value={editDraft.name}
-                  onChange={(e) => setEditDraft((s) => ({ ...s, name: e.target.value }))}
-                  required
-                />
-              </div>
-              <div>
-                <label className="text-xs text-[var(--muted)]">Satuan</label>
-                <input
-                  className={inputClass}
-                  value={editDraft.unit}
-                  onChange={(e) => setEditDraft((s) => ({ ...s, unit: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="text-xs text-[var(--muted)]">Stok</label>
-                <input
-                  type="number"
-                  min={0}
-                  className={inputClass}
-                  value={editDraft.stock}
-                  onChange={(e) => setEditDraft((s) => ({ ...s, stock: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="text-xs text-[var(--muted)]">Min</label>
-                <input
-                  type="number"
-                  min={0}
-                  className={inputClass}
-                  value={editDraft.minStock}
-                  onChange={(e) => setEditDraft((s) => ({ ...s, minStock: e.target.value }))}
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="text-xs text-[var(--muted)]">Harga</label>
-                <input
-                  type="number"
-                  min={0}
-                  className={inputClass}
-                  value={editDraft.sellPrice}
-                  onChange={(e) => setEditDraft((s) => ({ ...s, sellPrice: e.target.value }))}
-                />
-              </div>
+              <ProductFields
+                draft={editDraft}
+                onChange={(patch) => setEditDraft((s) => ({ ...s, ...patch }))}
+                priceFullWidth
+              />
               <div className="sm:col-span-2 mt-2 flex gap-2">
                 <button
                   type="button"

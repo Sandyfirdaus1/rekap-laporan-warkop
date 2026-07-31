@@ -1,55 +1,27 @@
 import { NextResponse } from "next/server";
+import { $Enums } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { parseQtyLines, resolveStockLines } from "@/lib/stock-lines";
+import { badRequest, serverError } from "@/lib/api-response";
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { items, customerName, customerPhone } = body;
 
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      return NextResponse.json({ error: "Item pesanan wajib diisi" }, { status: 400 });
+    const parsedLines = parseQtyLines(items);
+    if (parsedLines.length === 0) {
+      return badRequest("Item pesanan wajib diisi");
     }
 
-    // Calculate total and validate items
-    let totalAmount = 0;
-    const itemDetails = [];
+    const resolved = await resolveStockLines(parsedLines);
+    if ("error" in resolved) return badRequest(resolved.error);
 
-    for (const item of items) {
-      const productId = Number(item.productId);
-      const qty = Number(item.qty);
-      
-      if (qty <= 0) {
-        return NextResponse.json({ error: "Jumlah item harus lebih dari 0" }, { status: 400 });
-      }
+    const lines = resolved.lines;
+    const totalAmount = lines.reduce((sum, line) => sum + line.subtotal, 0);
 
-      // Get product info
-      const product = await prisma.product.findUnique({
-        where: { id: productId }
-      });
-      
-      if (!product) {
-        return NextResponse.json({ error: `Produk dengan ID ${productId} tidak ditemukan` }, { status: 400 });
-      }
-      
-      if (product.stock < qty) {
-        return NextResponse.json({ error: `Stok ${product.name} tidak cukup` }, { status: 400 });
-      }
-
-      const subtotal = Number(product.sellPrice) * qty;
-      totalAmount += subtotal;
-
-      itemDetails.push({
-        id: product.id.toString(),
-        price: Number(product.sellPrice),
-        quantity: qty,
-        name: product.name,
-      });
-    }
-
-    // Generate order number
     const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
-    // Create order in database
     const order = await prisma.order.create({
       data: {
         orderNumber,
@@ -60,29 +32,17 @@ export async function POST(req: Request) {
       }
     });
 
-    // Insert order items
-    for (const item of items) {
-      const productId = Number(item.productId);
-      const qty = Number(item.qty);
-      
-      const product = await prisma.product.findUnique({
-        where: { id: productId }
+    for (const line of lines) {
+      await prisma.orderItem.create({
+        data: {
+          orderId: order.id,
+          productId: line.productId,
+          productName: line.name,
+          qty: line.qty,
+          unitPrice: line.sellPrice,
+          subtotal: line.subtotal
+        }
       });
-      
-      if (product) {
-        const subtotal = Number(product.sellPrice) * qty;
-
-        await prisma.orderItem.create({
-          data: {
-            orderId: order.id,
-            productId,
-            productName: product.name,
-            qty,
-            unitPrice: Number(product.sellPrice),
-            subtotal
-          }
-        });
-      }
     }
 
     return NextResponse.json({
@@ -91,26 +51,23 @@ export async function POST(req: Request) {
       totalAmount,
     });
   } catch (e) {
-    console.error(e);
-    return NextResponse.json({ error: "Gagal membuat pesanan" }, { status: 500 });
+    return serverError(e, "Gagal membuat pesanan");
   }
 }
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const status = searchParams.get("status");
-
-    const where = status ? { paymentStatus: status as any } : {};
+    const status = searchParams.get("status") as $Enums.orders_payment_status | null;
 
     const orders = await prisma.order.findMany({
-      where,
+      where: status ? { paymentStatus: status } : {},
       orderBy: { createdAt: 'desc' },
       include: {
         items: true
       }
     });
-    
+
     const formattedOrders = orders.map(order => ({
       id: order.id,
       orderNumber: order.orderNumber,
@@ -132,7 +89,6 @@ export async function GET(req: Request) {
 
     return NextResponse.json(formattedOrders);
   } catch (e) {
-    console.error(e);
-    return NextResponse.json({ error: "Gagal mengambil pesanan" }, { status: 500 });
+    return serverError(e, "Gagal mengambil pesanan");
   }
 }

@@ -1,16 +1,12 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
+import { clearAuthCookie } from "@/lib/auth-cookie";
+import { serverError } from "@/lib/api-response";
 
 export async function POST() {
   try {
-    const cookieStore = await cookies();
-    cookieStore.delete("auth-token");
+    await clearAuthCookie();
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Logout error:", error);
-    return NextResponse.json(
-      { error: "Terjadi kesalahan saat logout" },
-      { status: 500 }
-    );
+    return serverError(error, "Terjadi kesalahan saat logout", { logPrefix: "Logout error:" });
   }
 }
