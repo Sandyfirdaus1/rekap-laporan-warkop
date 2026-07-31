@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
-import { SignJWT, jwtVerify } from "jose";
+import { SignJWT } from "jose";
 import { cookies } from "next/headers";
+import { getJwtSecret } from "@/lib/jwt";
 
 export async function POST(request: NextRequest) {
   try {
@@ -36,9 +37,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate JWT
-    const secret = new TextEncoder().encode(
-      process.env.JWT_SECRET || "your-secret-key-change-this-in-production"
-    );
+    const secret = getJwtSecret();
 
     const token = await new SignJWT({ userId: user.id, username: user.username })
       .setProtectedHeader({ alg: "HS256" })
@@ -61,9 +60,8 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Login error:", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
-      { error: "Terjadi kesalahan saat login", details: errorMessage },
+      { error: "Terjadi kesalahan saat login" },
       { status: 500 }
     );
   }

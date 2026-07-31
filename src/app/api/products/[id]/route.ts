@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/auth";
 import type { ProductDoc } from "@/lib/types";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -10,6 +11,9 @@ function badId() {
 
 export async function PATCH(req: Request, ctx: Ctx) {
   try {
+    const auth = await requireAuth();
+    if (!auth.ok) return auth.response;
+
     const { id } = await ctx.params;
     const productId = Number(id);
     if (isNaN(productId) || productId <= 0) return badId();
@@ -59,6 +63,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
 export async function DELETE(_req: Request, ctx: Ctx) {
   try {
+    const auth = await requireAuth();
+    if (!auth.ok) return auth.response;
+
     const { id } = await ctx.params;
     const productId = Number(id);
     if (isNaN(productId) || productId <= 0) return badId();

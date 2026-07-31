@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import type { ProductDoc, StockOutItem } from "@/lib/types";
+import { requireAuth } from "@/lib/auth";
 
 export async function POST(req: Request) {
   try {
+    const auth = await requireAuth();
+    if (!auth.ok) return auth.response;
+
     const body = await req.json();
     const rawItems = Array.isArray(body.items) ? body.items : [];
     const occurredAt = body.occurredAt ? new Date(body.occurredAt) : new Date();

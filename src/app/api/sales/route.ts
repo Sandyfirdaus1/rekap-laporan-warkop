@@ -7,11 +7,15 @@ import {
   type RangePreset,
 } from "@/lib/date-range";
 import type { ProductDoc, SaleDoc, SaleItem } from "@/lib/types";
+import { requireAuth } from "@/lib/auth";
 
 const validPresets: RangePreset[] = ["today", "week", "month"];
 
 export async function GET(req: Request) {
   try {
+    const auth = await requireAuth();
+    if (!auth.ok) return auth.response;
+
     const { searchParams } = new URL(req.url);
     const range = (searchParams.get("range") ?? "today") as RangePreset;
     const startDate = searchParams.get("startDate");
@@ -95,6 +99,9 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
+    const auth = await requireAuth();
+    if (!auth.ok) return auth.response;
+
     const body = await req.json();
     const rawItems = Array.isArray(body.items) ? body.items : [];
     const occurredAt = body.occurredAt ? new Date(body.occurredAt) : new Date();

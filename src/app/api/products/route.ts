@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/auth";
 import type { ProductDoc } from "@/lib/types";
 
 export async function GET() {
   try {
+    const auth = await requireAuth();
+    if (!auth.ok) return auth.response;
+
     const products = await prisma.product.findMany({
       orderBy: { name: 'asc' }
     });
@@ -28,6 +32,9 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const auth = await requireAuth();
+    if (!auth.ok) return auth.response;
+
     const body = await req.json();
     const name = String(body.name ?? "").trim();
     const unit = String(body.unit ?? "pcs").trim() || "pcs";

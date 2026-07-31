@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
 import { cookies } from "next/headers";
+import { getJwtSecret } from "@/lib/jwt";
 
 export async function POST(request: NextRequest) {
   try {
@@ -47,9 +48,7 @@ export async function POST(request: NextRequest) {
     const userId = user.id;
 
     // Generate JWT
-    const secret = new TextEncoder().encode(
-      process.env.JWT_SECRET || "your-secret-key-change-this-in-production"
-    );
+    const secret = getJwtSecret();
 
     const token = await new SignJWT({ userId, username })
       .setProtectedHeader({ alg: "HS256" })
