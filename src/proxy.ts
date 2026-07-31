@@ -27,7 +27,8 @@ export async function proxy(request: NextRequest) {
     await jwtVerify(token, secret);
     return NextResponse.next();
   } catch (error) {
-    // Invalid token, redirect to login
+    // Token tidak valid/kedaluwarsa: catat lalu arahkan ke login.
+    console.warn(`[proxy] token ditolak untuk ${pathname}:`, error);
     const response = NextResponse.redirect(new URL("/login", request.url));
     response.cookies.delete("auth-token");
     return response;

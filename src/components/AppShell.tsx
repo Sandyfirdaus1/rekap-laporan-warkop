@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import clsx from "clsx";
 import { LogOut } from "lucide-react";
+import { ApiError, fetchJson } from "@/lib/fetch-json";
 
 const IDLE_TIMEOUT = 10 * 60 * 1000; // 10 minutes in milliseconds
 const WARNING_TIMEOUT = 9 * 60 * 1000; // 9 minutes (1 minute before logout)
@@ -40,13 +41,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [isAuthPage]);
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((res) => res.json())
+    let cancelled = false;
+    fetchJson<{ user: { username: string } | null }>("/api/auth/me")
       .then((data) => {
-        if (data.user) {
-          setUser(data.user);
-        }
+        if (!cancelled && data.user) setUser(data.user);
+      })
+      .catch((error) => {
+        // 401 wajar saat belum login; kegagalan lain jangan hilang diam-diam.
+        if (error instanceof ApiError && error.status === 401) return;
+        console.error("Gagal memuat sesi pengguna:", error);
       });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Setup idle detection
@@ -82,7 +89,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
     setShowWarning(false);
 
-    await fetch("/api/auth/logout", { method: "POST" });
+    try {
+      await fetchJson("/api/auth/logout", {
+        method: "POST",
+        fallbackMessage: "Gagal logout",
+      });
+    } catch (error) {
+      // Sesi lokal tetap dibersihkan walau permintaan logout gagal.
+      console.error("Logout gagal di server:", error);
+    }
     setUser(null);
     router.push("/login");
   };

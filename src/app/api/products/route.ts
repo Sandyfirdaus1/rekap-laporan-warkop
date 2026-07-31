@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import type { ProductDoc } from "@/lib/types";
+import { errorResponse, readJsonBody } from "@/lib/api-error";
 
 export async function GET() {
   try {
@@ -21,14 +21,13 @@ export async function GET() {
 
     return NextResponse.json(body);
   } catch (e) {
-    console.error(e);
-    return NextResponse.json({ error: "Gagal mengambil produk" }, { status: 500 });
+    return errorResponse("GET /api/products", e, "Gagal mengambil produk");
   }
 }
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const body = await readJsonBody(req);
     const name = String(body.name ?? "").trim();
     const unit = String(body.unit ?? "pcs").trim() || "pcs";
     const stock = Number(body.stock ?? 0);
@@ -37,6 +36,13 @@ export async function POST(req: Request) {
 
     if (!name) {
       return NextResponse.json({ error: "Nama wajib diisi" }, { status: 400 });
+    }
+
+    if (![stock, minStock, sellPrice].every(Number.isFinite)) {
+      return NextResponse.json(
+        { error: "Stok, minimal stok, dan harga jual harus berupa angka" },
+        { status: 400 }
+      );
     }
 
     const product = await prisma.product.create({
@@ -52,7 +58,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ id: product.id.toString() }, { status: 201 });
   } catch (e) {
-    console.error(e);
-    return NextResponse.json({ error: "Gagal menambah produk" }, { status: 500 });
+    return errorResponse("POST /api/products", e, "Gagal menambah produk");
   }
 }

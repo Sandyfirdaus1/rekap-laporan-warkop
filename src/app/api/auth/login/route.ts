@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
-import { SignJWT, jwtVerify } from "jose";
+import { SignJWT } from "jose";
 import { cookies } from "next/headers";
+import { errorResponse, readJsonBody } from "@/lib/api-error";
 
 export async function POST(request: NextRequest) {
   try {
-    const { username, password } = await request.json();
+    const body = await readJsonBody(request);
+    const username = typeof body.username === "string" ? body.username.trim() : "";
+    const password = typeof body.password === "string" ? body.password : "";
 
     if (!username || !password) {
       return NextResponse.json(
@@ -60,11 +63,6 @@ export async function POST(request: NextRequest) {
       user: { id: user.id, username: user.username },
     });
   } catch (error) {
-    console.error("Login error:", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json(
-      { error: "Terjadi kesalahan saat login", details: errorMessage },
-      { status: 500 }
-    );
+    return errorResponse("POST /api/auth/login", error, "Terjadi kesalahan saat login");
   }
 }

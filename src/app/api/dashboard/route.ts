@@ -6,7 +6,7 @@ import {
   getRangeBounds,
   type RangePreset,
 } from "@/lib/date-range";
-import type { ProductDoc, SaleDoc, StockOutDoc } from "@/lib/types";
+import { badRequest, errorResponse } from "@/lib/api-error";
 
 const validPresets: RangePreset[] = ["today", "week", "month"];
 
@@ -21,7 +21,9 @@ function emptyBucket(): Bucket {
   return { revenue: 0, transactions: 0, qtySold: 0, qtyStockOut: 0 };
 }
 
-function mapProduct(p: any) {
+type ProductRow = Awaited<ReturnType<typeof prisma.product.findMany>>[number];
+
+function mapProduct(p: ProductRow) {
   return {
     id: p.id.toString(),
     name: p.name,
@@ -43,12 +45,15 @@ export async function GET(req: Request) {
 
     if (startDate) {
       start = new Date(startDate);
+      if (Number.isNaN(start.getTime())) {
+        throw badRequest("startDate tidak valid");
+      }
       start.setHours(0, 0, 0, 0);
       end = new Date(startDate);
       end.setHours(23, 59, 59, 999);
     } else {
       if (!validPresets.includes(range)) {
-        return NextResponse.json({ error: "range tidak valid" }, { status: 400 });
+        throw badRequest("range tidak valid");
       }
       const bounds = getRangeBounds(range);
       start = bounds.start;
@@ -94,11 +99,11 @@ export async function GET(req: Request) {
     const transactionCount = sales.length;
 
     const totalQtySold = sales.reduce(
-      (s, sale) => s + sale.items.reduce((a: number, it: any) => a + it.qty, 0),
+      (s, sale) => s + sale.items.reduce((a, it) => a + it.qty, 0),
       0
     );
     const totalQtyStockOut = stockOuts.reduce(
-      (s, doc) => s + doc.items.reduce((a: number, it: any) => a + it.qty, 0),
+      (s, doc) => s + doc.items.reduce((a, it) => a + it.qty, 0),
       0
     );
     const stockOutTransactionCount = stockOuts.length;
@@ -134,7 +139,7 @@ export async function GET(req: Request) {
       const cur = chartMap.get(key) ?? emptyBucket();
       cur.revenue += Number(sale.total);
       cur.transactions += 1;
-      cur.qtySold += sale.items.reduce((a: number, it: any) => a + it.qty, 0);
+      cur.qtySold += sale.items.reduce((a, it) => a + it.qty, 0);
       chartMap.set(key, cur);
     }
 
@@ -149,7 +154,7 @@ export async function GET(req: Request) {
         key = formatDayKey(d);
       }
       const cur = chartMap.get(key) ?? emptyBucket();
-      cur.qtyStockOut += doc.items.reduce((a: number, it: any) => a + it.qty, 0);
+      cur.qtyStockOut += doc.items.reduce((a, it) => a + it.qty, 0);
       chartMap.set(key, cur);
     }
 
@@ -207,7 +212,6 @@ export async function GET(req: Request) {
       chart,
     });
   } catch (e) {
-    console.error(e);
-    return NextResponse.json({ error: "Gagal memuat dashboard" }, { status: 500 });
+    return errorResponse("GET /api/dashboard", e, "Gagal memuat dashboard");
   }
 }
