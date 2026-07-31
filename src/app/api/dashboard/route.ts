@@ -257,6 +257,7 @@ export async function GET(req: Request) {
       chart,
       topProducts,
       paymentMethods,
+      recentSales: allSales.sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime()),
     });
   } catch (e) {
     console.error(e);

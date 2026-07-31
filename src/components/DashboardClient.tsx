@@ -101,6 +101,7 @@ type DashboardPayload = {
   }[];
   topProducts: TopProduct[];
   paymentMethods: PaymentMethodStat[];
+  recentSales?: Sale[];
 };
 
 export function DashboardClient() {
@@ -118,21 +119,16 @@ export function DashboardClient() {
       const dashUrl = selectedDate
         ? `/api/dashboard?startDate=${selectedDate}`
         : `/api/dashboard?range=${range}`;
-      const salesUrl = selectedDate
-        ? `/api/sales?startDate=${selectedDate}`
-        : `/api/sales?range=${range}`;
 
-      const [dashRes, salesRes] = await Promise.all([
-        fetch(dashUrl, { cache: "no-store" }),
-        fetch(salesUrl, { cache: "no-store" }),
-      ]);
+      const dashRes = await fetch(dashUrl, { cache: "no-store" });
       if (!dashRes.ok) throw new Error("Gagal memuat dashboard");
       const dashJson = (await dashRes.json()) as DashboardPayload;
       setData(dashJson);
 
-      if (salesRes.ok) {
-        const salesJson = (await salesRes.json()) as SalesResponse;
-        setSales(salesJson.sales);
+      if (dashJson.recentSales) {
+        setSales(dashJson.recentSales);
+      } else {
+        setSales([]);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Terjadi kesalahan");
