@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { badRequest, errorResponse } from "@/lib/api-error";
 
 export async function POST(
   req: Request,
@@ -9,8 +10,8 @@ export async function POST(
     const { id } = await params;
     const orderId = Number(id);
 
-    if (!orderId || isNaN(orderId)) {
-      return NextResponse.json({ error: "ID pesanan tidak valid" }, { status: 400 });
+    if (!Number.isInteger(orderId) || orderId <= 0) {
+      throw badRequest("ID pesanan tidak valid");
     }
 
     // Check if order exists
@@ -42,8 +43,11 @@ export async function POST(
       customerName: updatedOrder.customerName
     });
   } catch (e) {
-    console.error(e);
-    const errorMessage = e instanceof Error ? e.message : "Gagal mengkonfirmasi pembayaran";
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
+    return errorResponse(
+      "POST /api/orders/[id]/confirm-payment",
+      e,
+      "Gagal mengkonfirmasi pembayaran",
+      { notFoundMessage: "Pesanan tidak ditemukan" }
+    );
   }
 }

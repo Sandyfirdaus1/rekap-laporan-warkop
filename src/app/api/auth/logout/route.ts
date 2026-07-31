@@ -7,7 +7,7 @@ export async function POST() {
     cookieStore.delete("auth-token");
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Logout error:", error);
+    console.error("[POST /api/auth/logout]", error);
     return NextResponse.json(
       { error: "Terjadi kesalahan saat logout" },
       { status: 500 }

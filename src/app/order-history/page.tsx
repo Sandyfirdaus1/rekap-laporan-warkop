@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { ShoppingCart, CheckCircle, Clock, XCircle, Search, Filter, CreditCard } from "lucide-react";
 import { idr } from "@/lib/format";
+import { errorMessage, fetchJson } from "@/lib/fetch-json";
 
 interface OrderItem {
   productId: string;
@@ -28,13 +29,14 @@ export default function OrderHistoryPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "paid" | "pending">("all");
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
   useEffect(() => {
-    fetchOrders();
+    void fetchOrders();
   }, []);
 
   useEffect(() => {
@@ -56,12 +58,14 @@ export default function OrderHistoryPage() {
   }, [orders, searchTerm, statusFilter]);
 
   const fetchOrders = async () => {
+    setLoadError(null);
     try {
-      const res = await fetch("/api/orders");
-      const data = await res.json();
+      const data = await fetchJson<Order[]>("/api/orders", {
+        fallbackMessage: "Gagal memuat riwayat pesanan",
+      });
       setOrders(data);
     } catch (error) {
-      console.error("Failed to fetch orders:", error);
+      setLoadError(errorMessage(error, "Gagal memuat riwayat pesanan"));
     } finally {
       setLoading(false);
     }
@@ -76,23 +80,17 @@ export default function OrderHistoryPage() {
     if (!selectedOrder) return;
 
     try {
-      const res = await fetch(`/api/orders/${selectedOrder.id}/confirm-payment`, {
+      await fetchJson(`/api/orders/${selectedOrder.id}/confirm-payment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        fallbackMessage: 'Gagal mengkonfirmasi pembayaran',
       });
-
-      if (res.ok) {
-        alert('Pembayaran berhasil dikonfirmasi!');
-        setShowPaymentModal(false);
-        setSelectedOrder(null);
-        fetchOrders(); // Refresh orders to show updated status
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Gagal mengkonfirmasi pembayaran');
-      }
+      alert('Pembayaran berhasil dikonfirmasi!');
+      setShowPaymentModal(false);
+      setSelectedOrder(null);
+      await fetchOrders(); // Refresh orders to show updated status
     } catch (error) {
-      console.error('Payment confirmation error:', error);
-      alert('Terjadi kesalahan saat mengkonfirmasi pembayaran');
+      alert(errorMessage(error, 'Gagal mengkonfirmasi pembayaran'));
     }
   };
 
@@ -144,6 +142,12 @@ export default function OrderHistoryPage() {
           <p className="text-sm text-[var(--muted)]">Daftar semua pesanan pelanggan</p>
         </div>
       </div>
+
+      {loadError && (
+        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-500">
+          {loadError}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { errorMessage, fetchJson } from "@/lib/fetch-json";
 
 export default function RegisterPage() {
   const [username, setUsername] = useState("");
@@ -30,23 +31,17 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/auth/register", {
+      await fetchJson("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
+        fallbackMessage: "Registrasi gagal",
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || "Registrasi gagal");
-        return;
-      }
 
       router.push("/dashboard");
       router.refresh();
     } catch (err) {
-      setError("Terjadi kesalahan. Coba lagi.");
+      setError(errorMessage(err, "Registrasi gagal"));
     } finally {
       setLoading(false);
     }

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { errorMessage, fetchJson } from "@/lib/fetch-json";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
@@ -17,23 +18,17 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/auth/login", {
+      await fetchJson("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
+        fallbackMessage: "Login gagal",
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || "Login gagal");
-        return;
-      }
 
       router.push("/dashboard");
       router.refresh();
     } catch (err) {
-      setError("Terjadi kesalahan. Coba lagi.");
+      setError(errorMessage(err, "Login gagal"));
     } finally {
       setLoading(false);
     }

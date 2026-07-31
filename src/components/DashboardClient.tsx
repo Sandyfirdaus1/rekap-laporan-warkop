@@ -17,6 +17,7 @@ import { StockByStatusPanel } from "@/components/dashboard/StockByStatusPanel";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { SalesHistory } from "@/components/dashboard/SalesHistory";
 import { idr } from "@/lib/format";
+import { errorMessage, fetchJson } from "@/lib/fetch-json";
 
 type Range = "today" | "week" | "month";
 
@@ -78,6 +79,7 @@ export function DashboardClient() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<DashboardPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [sales, setSales] = useState<Sale[]>([]);
 
   const load = useCallback(async () => {
@@ -91,20 +93,20 @@ export function DashboardClient() {
         ? `/api/sales?startDate=${selectedDate}`
         : `/api/sales?range=${range}`;
 
-      const [dashRes, salesRes] = await Promise.all([
-        fetch(dashUrl, { cache: "no-store" }),
-        fetch(salesUrl, { cache: "no-store" }),
+      const [dashJson, salesJson] = await Promise.all([
+        fetchJson<DashboardPayload>(dashUrl, {
+          cache: "no-store",
+          fallbackMessage: "Gagal memuat dashboard",
+        }),
+        fetchJson<SalesResponse>(salesUrl, {
+          cache: "no-store",
+          fallbackMessage: "Gagal memuat penjualan",
+        }),
       ]);
-      if (!dashRes.ok) throw new Error("Gagal memuat dashboard");
-      const dashJson = (await dashRes.json()) as DashboardPayload;
       setData(dashJson);
-
-      if (salesRes.ok) {
-        const salesJson = (await salesRes.json()) as SalesResponse;
-        setSales(salesJson.sales);
-      }
+      setSales(salesJson.sales);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Terjadi kesalahan");
+      setError(errorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -119,19 +121,28 @@ export function DashboardClient() {
 
   const exportExcel = async () => {
     if (!data) return;
+    try {
+      await writeExcel(data);
+      setExportError(null);
+    } catch (e) {
+      setExportError(errorMessage(e, "Gagal mengekspor data"));
+    }
+  };
+
+  const writeExcel = async (payload: DashboardPayload) => {
     const XLSX = await import("xlsx");
-    const { available, lowStock, outOfStock } = data.stockByStatus;
+    const { available, lowStock, outOfStock } = payload.stockByStatus;
     const rows = [
       ["Warkop Sudi Mampir — Export Dashboard"],
       ["Periode filter", range],
-      ["Total jenis barang (SKU)", data.stats.totalProducts],
-      ["Produk tersedia (stok > min)", data.stats.availableProducts],
-      ["Total pemasukan (periode)", data.stats.totalRevenue],
-      ["Jumlah transaksi jual (periode)", data.stats.transactionCount],
-      ["Unit terjual (qty)", data.stats.totalQtySold],
-      ["Unit keluar non-jual (qty)", data.stats.totalQtyStockOut],
-      ["Mutasi keluar non-jual (jumlah entri)", data.stats.stockOutTransactionCount],
-      ["Total unit keluar (terjual + non-jual)", data.stats.totalQtyOut],
+      ["Total jenis barang (SKU)", payload.stats.totalProducts],
+      ["Produk tersedia (stok > min)", payload.stats.availableProducts],
+      ["Total pemasukan (periode)", payload.stats.totalRevenue],
+      ["Jumlah transaksi jual (periode)", payload.stats.transactionCount],
+      ["Unit terjual (qty)", payload.stats.totalQtySold],
+      ["Unit keluar non-jual (qty)", payload.stats.totalQtyStockOut],
+      ["Mutasi keluar non-jual (jumlah entri)", payload.stats.stockOutTransactionCount],
+      ["Total unit keluar (terjual + non-jual)", payload.stats.totalQtyOut],
       [],
       [
         "Grafik — Label",
@@ -141,7 +152,7 @@ export function DashboardClient() {
         "Qty keluar non-jual",
         "Total qty keluar",
       ],
-      ...data.chart.map((c) => [
+      ...payload.chart.map((c) => [
         c.label,
         c.revenue,
         c.transactions,
@@ -213,9 +224,9 @@ export function DashboardClient() {
         </div>
       </header>
 
-      {error && (
+      {(error || exportError) && (
         <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-          {error}
+          {error ?? exportError}
         </div>
       )}
 

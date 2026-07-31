@@ -1,89 +1,76 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { badRequest, errorResponse, readJsonBody } from "@/lib/api-error";
+import { parseLineItems } from "@/lib/line-items";
+
+const paymentStatuses = ["pending", "paid", "failed", "expired"] as const;
+type PaymentStatus = (typeof paymentStatuses)[number];
+
+function isPaymentStatus(value: string): value is PaymentStatus {
+  return (paymentStatuses as readonly string[]).includes(value);
+}
+
+type NewOrderItem = Omit<Prisma.OrderItemCreateManyInput, "orderId">;
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { items, customerName, customerPhone } = body;
-
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      return NextResponse.json({ error: "Item pesanan wajib diisi" }, { status: 400 });
-    }
+    const body = await readJsonBody(req);
+    const customerName = body.customerName != null ? String(body.customerName).trim() : null;
+    const customerPhone = body.customerPhone != null ? String(body.customerPhone).trim() : null;
+    const lines = parseLineItems(body.items, "Item pesanan wajib diisi");
 
     // Calculate total and validate items
     let totalAmount = 0;
-    const itemDetails = [];
+    const orderItems: NewOrderItem[] = [];
 
-    for (const item of items) {
-      const productId = Number(item.productId);
-      const qty = Number(item.qty);
-      
-      if (qty <= 0) {
-        return NextResponse.json({ error: "Jumlah item harus lebih dari 0" }, { status: 400 });
-      }
-
-      // Get product info
+    for (const line of lines) {
       const product = await prisma.product.findUnique({
-        where: { id: productId }
+        where: { id: line.productId }
       });
-      
+
       if (!product) {
-        return NextResponse.json({ error: `Produk dengan ID ${productId} tidak ditemukan` }, { status: 400 });
-      }
-      
-      if (product.stock < qty) {
-        return NextResponse.json({ error: `Stok ${product.name} tidak cukup` }, { status: 400 });
+        throw badRequest(`Produk dengan ID ${line.productId} tidak ditemukan`);
       }
 
-      const subtotal = Number(product.sellPrice) * qty;
+      if (product.stock < line.qty) {
+        throw badRequest(`Stok ${product.name} tidak cukup`);
+      }
+
+      const unitPrice = Number(product.sellPrice);
+      const subtotal = unitPrice * line.qty;
       totalAmount += subtotal;
 
-      itemDetails.push({
-        id: product.id.toString(),
-        price: Number(product.sellPrice),
-        quantity: qty,
-        name: product.name,
+      orderItems.push({
+        productId: product.id,
+        productName: product.name,
+        qty: line.qty,
+        unitPrice,
+        subtotal,
       });
     }
 
     // Generate order number
     const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
-    // Create order in database
-    const order = await prisma.order.create({
-      data: {
-        orderNumber,
-        customerName,
-        customerPhone,
-        totalAmount,
-        paymentStatus: 'pending'
-      }
-    });
-
-    // Insert order items
-    for (const item of items) {
-      const productId = Number(item.productId);
-      const qty = Number(item.qty);
-      
-      const product = await prisma.product.findUnique({
-        where: { id: productId }
+    // Order dan itemnya harus tersimpan bersama; kalau item gagal, order ikut dibatalkan.
+    const order = await prisma.$transaction(async (tx) => {
+      const created = await tx.order.create({
+        data: {
+          orderNumber,
+          customerName,
+          customerPhone,
+          totalAmount,
+          paymentStatus: 'pending'
+        }
       });
-      
-      if (product) {
-        const subtotal = Number(product.sellPrice) * qty;
 
-        await prisma.orderItem.create({
-          data: {
-            orderId: order.id,
-            productId,
-            productName: product.name,
-            qty,
-            unitPrice: Number(product.sellPrice),
-            subtotal
-          }
-        });
-      }
-    }
+      await tx.orderItem.createMany({
+        data: orderItems.map((item) => ({ orderId: created.id, ...item })),
+      });
+
+      return created;
+    });
 
     return NextResponse.json({
       orderId: order.id.toString(),
@@ -91,8 +78,7 @@ export async function POST(req: Request) {
       totalAmount,
     });
   } catch (e) {
-    console.error(e);
-    return NextResponse.json({ error: "Gagal membuat pesanan" }, { status: 500 });
+    return errorResponse("POST /api/orders", e, "Gagal membuat pesanan");
   }
 }
 
@@ -101,7 +87,13 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status");
 
-    const where = status ? { paymentStatus: status as any } : {};
+    const where: Prisma.OrderWhereInput = {};
+    if (status) {
+      if (!isPaymentStatus(status)) {
+        throw badRequest("Status pembayaran tidak valid");
+      }
+      where.paymentStatus = status;
+    }
 
     const orders = await prisma.order.findMany({
       where,
@@ -132,7 +124,6 @@ export async function GET(req: Request) {
 
     return NextResponse.json(formattedOrders);
   } catch (e) {
-    console.error(e);
-    return NextResponse.json({ error: "Gagal mengambil pesanan" }, { status: 500 });
+    return errorResponse("GET /api/orders", e, "Gagal mengambil pesanan");
   }
 }

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { ShoppingCart, Plus, Minus, CreditCard, User, Phone, Coffee, Utensils } from "lucide-react";
 import { idr } from "@/lib/format";
+import { errorMessage, fetchJson } from "@/lib/fetch-json";
 
 interface Product {
   id: string;
@@ -30,6 +31,7 @@ export default function OrdersPage() {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [orderDetails, setOrderDetails] = useState<{ orderNumber: string; totalAmount: number; orderId: string } | null>(null);
@@ -38,16 +40,18 @@ export default function OrdersPage() {
   const [customPrice, setCustomPrice] = useState("");
 
   useEffect(() => {
-    fetchProducts();
+    void fetchProducts();
   }, []);
 
   const fetchProducts = async () => {
+    setLoadError(null);
     try {
-      const res = await fetch("/api/products");
-      const data = await res.json();
-      setProducts(data.filter((p: Product) => p.stock > 0 || p.is_service));
+      const data = await fetchJson<Product[]>("/api/products", {
+        fallbackMessage: "Gagal memuat produk",
+      });
+      setProducts(data.filter((p) => p.stock > 0 || p.is_service));
     } catch (error) {
-      console.error("Failed to fetch products:", error);
+      setLoadError(errorMessage(error, "Gagal memuat produk"));
     } finally {
       setLoading(false);
     }
@@ -162,30 +166,31 @@ export default function OrdersPage() {
     setProcessing(true);
 
     try {
-      const res = await fetch("/api/orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          items: cart,
-          customerName: customerName.trim(),
-          customerPhone: customerPhone.trim(),
-        }),
+      const data = await fetchJson<{ orderNumber: string; totalAmount: number; orderId: string }>(
+        "/api/orders",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            items: cart,
+            customerName: customerName.trim(),
+            customerPhone: customerPhone.trim(),
+          }),
+          fallbackMessage: "Gagal membuat pesanan",
+        }
+      );
+
+      setOrderDetails({
+        orderNumber: data.orderNumber,
+        totalAmount: data.totalAmount,
+        orderId: data.orderId,
       });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        setOrderDetails({ orderNumber: data.orderNumber, totalAmount: data.totalAmount, orderId: data.orderId });
-        setShowPaymentModal(true);
-        setCart([]);
-        setCustomerName("");
-        setCustomerPhone("");
-      } else {
-        alert(data.error || "Gagal membuat pesanan");
-      }
+      setShowPaymentModal(true);
+      setCart([]);
+      setCustomerName("");
+      setCustomerPhone("");
     } catch (error) {
-      console.error("Checkout error:", error);
-      alert("Terjadi kesalahan saat checkout");
+      alert(errorMessage(error, "Gagal membuat pesanan"));
     } finally {
       setProcessing(false);
     }
@@ -207,6 +212,12 @@ export default function OrdersPage() {
           <p className="text-sm text-[var(--muted)]">Input pesanan makanan dan minuman</p>
         </div>
       </div>
+
+      {loadError && (
+        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-500">
+          {loadError}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Products Grid */}
@@ -482,23 +493,17 @@ export default function OrdersPage() {
                     if (!orderDetails) return;
                     
                     try {
-                      const res = await fetch(`/api/orders/${orderDetails.orderId}/confirm-payment`, {
+                      await fetchJson(`/api/orders/${orderDetails.orderId}/confirm-payment`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
+                        fallbackMessage: 'Gagal mengkonfirmasi pembayaran',
                       });
-                      
-                      if (res.ok) {
-                        alert('Pembayaran berhasil dikonfirmasi!');
-                        setShowPaymentModal(false);
-                        setOrderDetails(null);
-                        fetchProducts(); // Refresh products to show updated stock
-                      } else {
-                        const data = await res.json();
-                        alert(data.error || 'Gagal mengkonfirmasi pembayaran');
-                      }
+                      alert('Pembayaran berhasil dikonfirmasi!');
+                      setShowPaymentModal(false);
+                      setOrderDetails(null);
+                      await fetchProducts(); // Refresh products to show updated stock
                     } catch (error) {
-                      console.error('Payment confirmation error:', error);
-                      alert('Terjadi kesalahan saat mengkonfirmasi pembayaran');
+                      alert(errorMessage(error, 'Gagal mengkonfirmasi pembayaran'));
                     }
                   }}
                   className="flex-1 rounded-xl bg-green-600 px-4 py-3 text-sm font-medium text-white hover:bg-green-700 transition-colors"

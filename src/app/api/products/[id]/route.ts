@@ -1,82 +1,89 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import type { ProductDoc } from "@/lib/types";
+import { badRequest, errorResponse, readJsonBody } from "@/lib/api-error";
 
 type Ctx = { params: Promise<{ id: string }> };
 
-function badId() {
-  return NextResponse.json({ error: "ID tidak valid" }, { status: 400 });
+function parseProductId(id: string) {
+  const productId = Number(id);
+  if (!Number.isInteger(productId) || productId <= 0) {
+    throw badRequest("ID tidak valid");
+  }
+  return productId;
+}
+
+function parseCount(value: unknown, field: string) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) {
+    throw badRequest(`${field} harus berupa angka`);
+  }
+  return Math.max(0, Math.floor(n));
 }
 
 export async function PATCH(req: Request, ctx: Ctx) {
   try {
     const { id } = await ctx.params;
-    const productId = Number(id);
-    if (isNaN(productId) || productId <= 0) return badId();
+    const productId = parseProductId(id);
 
-    const body = await req.json();
-    const updateData: any = {};
+    const body = await readJsonBody(req);
+    const updateData: Prisma.ProductUpdateInput = {};
 
     if (body.name !== undefined) {
       const name = String(body.name).trim();
-      if (!name) return NextResponse.json({ error: "Nama tidak boleh kosong" }, { status: 400 });
+      if (!name) throw badRequest("Nama tidak boleh kosong");
       updateData.name = name;
     }
     if (body.unit !== undefined) {
       updateData.unit = String(body.unit).trim() || "pcs";
     }
     if (body.stock !== undefined) {
-      updateData.stock = Math.max(0, Math.floor(Number(body.stock)));
+      updateData.stock = parseCount(body.stock, "Stok");
     }
     if (body.minStock !== undefined) {
-      updateData.minStock = Math.max(0, Math.floor(Number(body.minStock)));
+      updateData.minStock = parseCount(body.minStock, "Minimal stok");
     }
     if (body.sellPrice !== undefined) {
-      updateData.sellPrice = Math.max(0, Number(body.sellPrice));
+      const sellPrice = Number(body.sellPrice);
+      if (!Number.isFinite(sellPrice)) throw badRequest("Harga jual harus berupa angka");
+      updateData.sellPrice = Math.max(0, sellPrice);
     }
     if (body.is_service !== undefined) {
       updateData.is_service = Boolean(body.is_service);
     }
 
     if (Object.keys(updateData).length === 0) {
-      return NextResponse.json({ error: "Tidak ada field yang diupdate" }, { status: 400 });
+      throw badRequest("Tidak ada field yang diupdate");
     }
 
     updateData.updatedAt = new Date();
 
-    const product = await prisma.product.update({
+    await prisma.product.update({
       where: { id: productId },
       data: updateData
     });
 
-    if (!product) {
-      return NextResponse.json({ error: "Produk tidak ditemukan" }, { status: 404 });
-    }
-
     return NextResponse.json({ ok: true });
   } catch (e) {
-    console.error(e);
-    return NextResponse.json({ error: "Gagal memperbarui produk" }, { status: 500 });
+    return errorResponse("PATCH /api/products/[id]", e, "Gagal memperbarui produk", {
+      notFoundMessage: "Produk tidak ditemukan",
+    });
   }
 }
 
 export async function DELETE(_req: Request, ctx: Ctx) {
   try {
     const { id } = await ctx.params;
-    const productId = Number(id);
-    if (isNaN(productId) || productId <= 0) return badId();
+    const productId = parseProductId(id);
 
-    const product = await prisma.product.delete({
+    await prisma.product.delete({
       where: { id: productId }
     });
 
-    if (!product) {
-      return NextResponse.json({ error: "Produk tidak ditemukan" }, { status: 404 });
-    }
-
     return NextResponse.json({ ok: true });
   } catch (e) {
-    console.error(e);
-    return NextResponse.json({ error: "Gagal menghapus produk" }, { status: 500 });
+    return errorResponse("DELETE /api/products/[id]", e, "Gagal menghapus produk", {
+      notFoundMessage: "Produk tidak ditemukan",
+    });
   }
 }

@@ -6,7 +6,9 @@ import {
   getRangeBounds,
   type RangePreset,
 } from "@/lib/date-range";
-import type { ProductDoc, SaleDoc, SaleItem } from "@/lib/types";
+import type { SaleItem } from "@/lib/types";
+import { badRequest, errorResponse, readJsonBody } from "@/lib/api-error";
+import { parseLineItems, parseOccurredAt } from "@/lib/line-items";
 
 const validPresets: RangePreset[] = ["today", "week", "month"];
 
@@ -88,34 +90,15 @@ export async function GET(req: Request) {
       chart,
     });
   } catch (e) {
-    console.error(e);
-    return NextResponse.json({ error: "Gagal mengambil penjualan" }, { status: 500 });
+    return errorResponse("GET /api/sales", e, "Gagal mengambil penjualan");
   }
 }
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const rawItems = Array.isArray(body.items) ? body.items : [];
-    const occurredAt = body.occurredAt ? new Date(body.occurredAt) : new Date();
-    if (Number.isNaN(occurredAt.getTime())) {
-      return NextResponse.json({ error: "Tanggal tidak valid" }, { status: 400 });
-    }
-
-    type Line = { productId: number; qty: number; unitPrice?: number };
-    const lines: Line[] = [];
-    for (const row of rawItems) {
-      const pid = Number(row.productId ?? 0);
-      const qty = Math.floor(Number(row.qty ?? 0));
-      const unitPrice = row.unitPrice !== undefined ? Number(row.unitPrice) : undefined;
-      if (pid > 0 && qty > 0) {
-        lines.push({ productId: pid, qty, unitPrice });
-      }
-    }
-
-    if (lines.length === 0) {
-      return NextResponse.json({ error: "Minimal satu item penjualan" }, { status: 400 });
-    }
+    const body = await readJsonBody(req);
+    const occurredAt = parseOccurredAt(body.occurredAt);
+    const lines = parseLineItems(body.items, "Minimal satu item penjualan");
 
     const saleItems: SaleItem[] = [];
     let total = 0;
@@ -126,15 +109,12 @@ export async function POST(req: Request) {
       });
 
       if (!product) {
-        return NextResponse.json({ error: "Produk tidak ditemukan" }, { status: 400 });
+        throw badRequest(`Produk dengan ID ${line.productId} tidak ditemukan`);
       }
 
       // For service products, skip stock check
       if (!product.is_service && product.stock < line.qty) {
-        return NextResponse.json(
-          { error: `Stok "${product.name}" tidak mencukupi (tersisa ${product.stock})` },
-          { status: 400 }
-        );
+        throw badRequest(`Stok "${product.name}" tidak mencukupi (tersisa ${product.stock})`);
       }
 
       // Use manual price if provided, otherwise use product's default price
@@ -192,7 +172,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, total: result.total }, { status: 201 });
   } catch (e) {
-    console.error(e);
-    return NextResponse.json({ error: "Gagal menyimpan penjualan" }, { status: 500 });
+    return errorResponse("POST /api/sales", e, "Gagal menyimpan penjualan");
   }
 }

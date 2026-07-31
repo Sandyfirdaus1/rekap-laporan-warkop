@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, MinusCircle, Pencil, Plus, Trash2, PackagePlus } from "lucide-react";
 import { idr } from "@/lib/format";
+import { errorMessage, fetchJson } from "@/lib/fetch-json";
 
 type Product = {
   id: string;
@@ -63,12 +64,13 @@ export function InventoryClient() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/products", { cache: "no-store" });
-      if (!res.ok) throw new Error("Gagal memuat inventori");
-      const list = await res.json();
+      const list = await fetchJson<Product[]>("/api/products", {
+        cache: "no-store",
+        fallbackMessage: "Gagal memuat inventori",
+      });
       setItems(list);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error");
+      setError(errorMessage(e, "Gagal memuat inventori"));
     } finally {
       setLoading(false);
     }
@@ -85,7 +87,7 @@ export function InventoryClient() {
     e.preventDefault();
     setNewBusy(true);
     try {
-      const res = await fetch("/api/products", {
+      await fetchJson("/api/products", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -96,13 +98,12 @@ export function InventoryClient() {
           sellPrice: Number(newP.sellPrice),
           is_service: newP.is_service,
         }),
+        fallbackMessage: "Gagal menambah produk",
       });
-      const j = await res.json();
-      if (!res.ok) throw new Error(j.error ?? "Gagal");
       setNewP(emptyProduct);
       await load();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Gagal");
+      alert(errorMessage(err, "Gagal menambah produk"));
     } finally {
       setNewBusy(false);
     }
@@ -117,16 +118,14 @@ export function InventoryClient() {
   const submitStockOut = async (e: React.FormEvent) => {
     e.preventDefault();
     setOutMsg(null);
-    const payloadItems = outLines
-      .map((l) => ({ productId: l.productId, qty: Number(l.qty) }))
-      .filter((l) => l.productId && l.qty > 0);
-    if (payloadItems.length === 0) {
-      setOutMsg("Pilih barang dan jumlah keluar.");
+    const payloadItems = outLines.map((l) => ({ productId: l.productId, qty: Number(l.qty) }));
+    if (payloadItems.some((l) => !l.productId || !Number.isInteger(l.qty) || l.qty <= 0)) {
+      setOutMsg("Setiap baris harus punya barang dan jumlah keluar minimal 1.");
       return;
     }
     setOutBusy(true);
     try {
-      const res = await fetch("/api/stock-out", {
+      const j = await fetchJson<{ totalQty: number }>("/api/stock-out", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -134,15 +133,14 @@ export function InventoryClient() {
           reason: outReason,
           note: outNote.trim() || undefined,
         }),
+        fallbackMessage: "Gagal mencatat barang keluar",
       });
-      const j = await res.json();
-      if (!res.ok) throw new Error(j.error ?? "Gagal");
       setOutMsg(`Tersimpan · Total ${j.totalQty} unit keluar`);
       setOutLines([{ productId: "", qty: "1" }]);
       setOutNote("");
       await load();
     } catch (err) {
-      setOutMsg(err instanceof Error ? err.message : "Gagal");
+      setOutMsg(errorMessage(err, "Gagal mencatat barang keluar"));
     } finally {
       setOutBusy(false);
     }
@@ -165,7 +163,7 @@ export function InventoryClient() {
     if (!editing) return;
     setEditBusy(true);
     try {
-      const res = await fetch(`/api/products/${editing.id}`, {
+      await fetchJson(`/api/products/${editing.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -176,13 +174,12 @@ export function InventoryClient() {
           sellPrice: Number(editDraft.sellPrice),
           is_service: editDraft.is_service,
         }),
+        fallbackMessage: "Gagal memperbarui produk",
       });
-      const j = await res.json();
-      if (!res.ok) throw new Error(j.error ?? "Gagal");
       setEditing(null);
       await load();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Gagal");
+      alert(errorMessage(err, "Gagal memperbarui produk"));
     } finally {
       setEditBusy(false);
     }
@@ -191,12 +188,13 @@ export function InventoryClient() {
   const remove = async (p: Product) => {
     if (!confirm(`Hapus "${p.name}" dari daftar?`)) return;
     try {
-      const res = await fetch(`/api/products/${p.id}`, { method: "DELETE" });
-      const j = await res.json();
-      if (!res.ok) throw new Error(j.error ?? "Gagal");
+      await fetchJson(`/api/products/${p.id}`, {
+        method: "DELETE",
+        fallbackMessage: "Gagal menghapus produk",
+      });
       await load();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Gagal");
+      alert(errorMessage(err, "Gagal menghapus produk"));
     }
   };
 

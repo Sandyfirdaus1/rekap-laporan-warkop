@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
-import { jwtVerify } from "jose";
+import { NextResponse } from "next/server";
+import { errors, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get("auth-token")?.value;
@@ -24,7 +24,13 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Me error:", error);
-    return NextResponse.json({ user: null }, { status: 401 });
+    if (error instanceof errors.JOSEError) {
+      return NextResponse.json({ user: null }, { status: 401 });
+    }
+    console.error("[GET /api/auth/me]", error);
+    return NextResponse.json(
+      { error: "Terjadi kesalahan saat memuat sesi" },
+      { status: 500 }
+    );
   }
 }
