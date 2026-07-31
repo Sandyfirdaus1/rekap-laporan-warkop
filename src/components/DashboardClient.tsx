@@ -104,9 +104,17 @@ type DashboardPayload = {
   recentSales?: Sale[];
 };
 
+const getTodayWIB = () => {
+  const d = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
 export function DashboardClient() {
   const [range, setRange] = useState<Range>("today");
-  const [selectedDate, setSelectedDate] = useState("");
+  const [selectedDate, setSelectedDate] = useState(getTodayWIB());
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<DashboardPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -281,31 +289,45 @@ export function DashboardClient() {
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           <div className="flex flex-wrap items-center gap-2">
-            {rangeTabs.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                title={t.desc}
-                onClick={() => {
-                  setSelectedDate("");
-                  setRange(t.id);
-                }}
-                className={clsx(
-                  "rounded-xl px-4 py-2 text-sm font-medium transition-all",
-                  range === t.id && !selectedDate
-                    ? "bg-[var(--accent)] text-[#1a1206] shadow-md shadow-amber-900/25 font-semibold"
-                    : "bg-white/5 text-[var(--muted)] ring-1 ring-[var(--card-border)] hover:bg-white/10"
-                )}
-              >
-                {t.label}
-              </button>
-            ))}
-            {selectedDate && (
+            {rangeTabs.map((t) => {
+              const isHariIni = t.id === "today" && selectedDate === getTodayWIB();
+              const isActive = isHariIni || (range === t.id && !selectedDate);
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  title={t.desc}
+                  onClick={() => {
+                    if (t.id === "today") {
+                      setSelectedDate(getTodayWIB());
+                    } else {
+                      setSelectedDate("");
+                    }
+                    setRange(t.id);
+                  }}
+                  className={clsx(
+                    "rounded-xl px-4 py-2 text-sm font-medium transition-all",
+                    isActive
+                      ? "bg-[var(--accent)] text-[#1a1206] shadow-md shadow-amber-900/25 font-semibold"
+                      : "bg-white/5 text-[var(--muted)] ring-1 ring-[var(--card-border)] hover:bg-white/10"
+                  )}
+                >
+                  {t.label}
+                </button>
+              );
+            })}
+            {selectedDate && selectedDate !== getTodayWIB() && (
               <div className="flex items-center gap-1.5 rounded-xl bg-amber-500/15 px-3 py-2 text-xs font-medium text-amber-300 ring-1 ring-amber-500/30">
                 <span>Filter Tgl: {selectedDate}</span>
                 <button
                   type="button"
-                  onClick={() => setSelectedDate("")}
+                  onClick={() => {
+                    setSelectedDate("");
+                    setRange("week"); // Default back to something if clearing custom date? Or just keep current range.
+                    // Actually, let's just reset to today:
+                    setSelectedDate(getTodayWIB());
+                    setRange("today");
+                  }}
                   className="rounded hover:text-white"
                   title="Reset Filter Tanggal"
                 >
