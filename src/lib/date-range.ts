@@ -76,30 +76,37 @@ export function formatHourKey(d: Date) {
   return `${formatDayKey(d)} ${String(d.getHours()).padStart(2, "0")}:00`;
 }
 
-export function formatMonthKey(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+export type ChartMode = "hour" | "day";
+
+/** Grafik dibuat per jam saat melihat satu hari, selain itu per tanggal. */
+export function resolveChartMode(preset: RangePreset, hasStartDate: boolean): ChartMode {
+  return hasStartDate || preset === "today" ? "hour" : "day";
 }
 
-/** Label bucket grafik untuk sebuah tanggal sesuai preset yang dipilih. */
-export function formatChartKey(preset: RangePreset, d: Date) {
-  if (preset === "today") return formatHourKey(d);
-  if (preset === "month") return formatMonthKey(d);
-  return formatDayKey(d);
+/** Label bucket grafik untuk sebuah tanggal. */
+export function formatChartKey(mode: ChartMode, d: Date) {
+  return mode === "hour" ? formatHourKey(d) : formatDayKey(d);
 }
 
-/** Semua label bucket grafik dalam rentang, termasuk yang tanpa data. */
-export function buildChartLabels(preset: RangePreset, start: Date, end: Date, now = new Date()) {
-  if (preset === "today") {
+/**
+ * Semua label bucket grafik dalam rentang, termasuk yang tanpa data.
+ * Mode jam berhenti di jam berjalan bila rentangnya hari ini, kecuali `fullDay`.
+ */
+export function buildChartLabels(
+  mode: ChartMode,
+  start: Date,
+  end: Date,
+  options: { fullDay?: boolean } = {},
+  now = new Date()
+) {
+  if (mode === "hour") {
     const dayKey = formatDayKey(start);
+    const isToday = !options.fullDay && start.toDateString() === now.toDateString();
+    const maxHour = isToday ? now.getHours() : 23;
     return Array.from(
-      { length: now.getHours() + 1 },
+      { length: maxHour + 1 },
       (_, h) => `${dayKey} ${String(h).padStart(2, "0")}:00`
     );
-  }
-
-  if (preset === "month") {
-    const year = start.getFullYear();
-    return Array.from({ length: 12 }, (_, m) => `${year}-${String(m + 1).padStart(2, "0")}`);
   }
 
   const labels: string[] = [];

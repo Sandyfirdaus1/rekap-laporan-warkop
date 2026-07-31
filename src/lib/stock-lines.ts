@@ -8,6 +8,7 @@ export type ResolvedLine = {
   name: string;
   sellPrice: number;
   subtotal: number;
+  isService: boolean;
 };
 
 /**
@@ -59,6 +60,7 @@ export async function resolveStockLines(
       name: product.name,
       sellPrice,
       subtotal: sellPrice * line.qty,
+      isService: Boolean(product.is_service),
     });
   }
 

@@ -15,7 +15,8 @@ export async function POST(
     }
 
     const order = await prisma.order.findUnique({
-      where: { id: orderId }
+      where: { id: orderId },
+      include: { items: true }
     });
 
     if (!order) {
@@ -26,13 +27,55 @@ export async function POST(
       return badRequest("Pesanan sudah dikonfirmasi pembayarannya");
     }
 
-    const updatedOrder = await prisma.order.update({
-      where: { id: orderId },
-      data: {
-        paymentStatus: 'paid',
-        paymentMethod: order.paymentMethod ?? 'qris',
-        updatedAt: new Date()
+    const now = new Date();
+
+    // Update payment status to 'paid', create Sale, and decrement stock
+    const updatedOrder = await prisma.$transaction(async (tx) => {
+      const orderRes = await tx.order.update({
+        where: { id: orderId },
+        data: {
+          paymentStatus: 'paid',
+          paymentMethod: order.paymentMethod ?? 'qris',
+          updatedAt: now
+        }
+      });
+
+      // Create Sale record
+      const sale = await tx.sale.create({
+        data: {
+          occurredAt: now,
+          total: order.totalAmount
+        }
+      });
+
+      // Insert sale items & update product stocks
+      for (const item of order.items) {
+        await tx.saleItem.create({
+          data: {
+            saleId: sale.id,
+            productId: item.productId,
+            name: item.productName,
+            qty: item.qty,
+            unitPrice: item.unitPrice,
+            subtotal: item.subtotal
+          }
+        });
+
+        const product = await tx.product.findUnique({
+          where: { id: item.productId }
+        });
+        if (product && !product.is_service) {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: {
+              stock: { decrement: item.qty },
+              updatedAt: now
+            }
+          });
+        }
       }
+
+      return orderRes;
     });
 
     return NextResponse.json({

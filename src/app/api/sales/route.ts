@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { formatDayKey, formatHourKey, resolveRangeParams } from "@/lib/date-range";
+import { formatChartKey, resolveChartMode, resolveRangeParams } from "@/lib/date-range";
+import { fetchSalesWithPaidOrders } from "@/lib/sales-source";
 import { parseQtyLines, resolveStockLines } from "@/lib/stock-lines";
 import { badRequest, serverError } from "@/lib/api-response";
 
@@ -11,28 +12,21 @@ export async function GET(req: Request) {
     if ("error" in resolved) return badRequest(resolved.error);
     const { range, start, end } = resolved;
 
-    const sales = await prisma.sale.findMany({
-      where: {
-        occurredAt: {
-          gte: start,
-          lte: end
-        }
-      },
-      orderBy: { occurredAt: 'asc' },
-      include: {
-        items: true
-      }
-    });
+    const mode = resolveChartMode(range, Boolean(searchParams.get("startDate")));
+    const allSales = (await fetchSalesWithPaidOrders(start, end)).map((sale) => ({
+      ...sale,
+      occurredAt: sale.occurredAt.toISOString(),
+      rawDate: sale.occurredAt,
+    }));
 
-    const totalRevenue = sales.reduce((s, x) => s + Number(x.total), 0);
+    const totalRevenue = allSales.reduce((s, x) => s + x.total, 0);
 
     const chartMap = new Map<string, { revenue: number; transactions: number }>();
 
-    for (const sale of sales) {
-      const d = new Date(sale.occurredAt);
-      const key = range === "today" ? formatHourKey(d) : formatDayKey(d);
+    for (const sale of allSales) {
+      const key = formatChartKey(mode, sale.rawDate);
       const cur = chartMap.get(key) ?? { revenue: 0, transactions: 0 };
-      cur.revenue += Number(sale.total);
+      cur.revenue += sale.total;
       cur.transactions += 1;
       chartMap.set(key, cur);
     }
@@ -49,13 +43,8 @@ export async function GET(req: Request) {
       start: start.toISOString(),
       end: end.toISOString(),
       totalRevenue,
-      transactionCount: sales.length,
-      sales: sales.map((s) => ({
-        id: s.id.toString(),
-        occurredAt: s.occurredAt.toISOString(),
-        total: Number(s.total),
-        items: s.items,
-      })),
+      transactionCount: allSales.length,
+      sales: allSales,
       chart,
     });
   } catch (e) {

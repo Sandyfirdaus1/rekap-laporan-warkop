@@ -23,33 +23,72 @@ export async function POST(req: Request) {
     const totalAmount = lines.reduce((sum, line) => sum + line.subtotal, 0);
 
     const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    const isPaid = method === "cash";
+    const now = new Date();
 
-    const order = await prisma.order.create({
-      data: {
-        orderNumber,
-        customerName,
-        customerPhone,
-        totalAmount,
-        paymentMethod: method,
-        paymentStatus: method === "cash" ? "paid" : "pending",
-      }
-    });
-
-    for (const line of lines) {
-      await prisma.orderItem.create({
+    const result = await prisma.$transaction(async (tx) => {
+      const order = await tx.order.create({
         data: {
-          orderId: order.id,
-          productId: line.productId,
-          productName: line.name,
-          qty: line.qty,
-          unitPrice: line.sellPrice,
-          subtotal: line.subtotal
+          orderNumber,
+          customerName,
+          customerPhone,
+          totalAmount,
+          paymentMethod: method,
+          paymentStatus: isPaid ? "paid" : "pending",
         }
       });
-    }
+
+      for (const line of lines) {
+        await tx.orderItem.create({
+          data: {
+            orderId: order.id,
+            productId: line.productId,
+            productName: line.name,
+            qty: line.qty,
+            unitPrice: line.sellPrice,
+            subtotal: line.subtotal
+          }
+        });
+      }
+
+      // Pembayaran cash langsung tercatat sebagai penjualan dan mengurangi stok
+      if (isPaid) {
+        const sale = await tx.sale.create({
+          data: {
+            occurredAt: now,
+            total: totalAmount
+          }
+        });
+
+        for (const line of lines) {
+          await tx.saleItem.create({
+            data: {
+              saleId: sale.id,
+              productId: line.productId,
+              name: line.name,
+              qty: line.qty,
+              unitPrice: line.sellPrice,
+              subtotal: line.subtotal
+            }
+          });
+
+          if (!line.isService) {
+            await tx.product.update({
+              where: { id: line.productId },
+              data: {
+                stock: { decrement: line.qty },
+                updatedAt: now
+              }
+            });
+          }
+        }
+      }
+
+      return order;
+    });
 
     return NextResponse.json({
-      orderId: order.id.toString(),
+      orderId: result.id.toString(),
       orderNumber,
       totalAmount,
     });
