@@ -183,23 +183,39 @@ export function DashboardClient() {
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {rangeTabs.map((t) => (
               <button
                 key={t.id}
                 type="button"
                 title={t.desc}
-                onClick={() => setRange(t.id)}
+                onClick={() => {
+                  setSelectedDate("");
+                  setRange(t.id);
+                }}
                 className={clsx(
                   "rounded-xl px-4 py-2 text-sm font-medium transition-all",
-                  range === t.id
-                    ? "bg-[var(--accent)] text-[#1a1206] shadow-md shadow-amber-900/25"
+                  range === t.id && !selectedDate
+                    ? "bg-[var(--accent)] text-[#1a1206] shadow-md shadow-amber-900/25 font-semibold"
                     : "bg-white/5 text-[var(--muted)] ring-1 ring-[var(--card-border)] hover:bg-white/10"
                 )}
               >
                 {t.label}
               </button>
             ))}
+            {selectedDate && (
+              <div className="flex items-center gap-1.5 rounded-xl bg-amber-500/15 px-3 py-2 text-xs font-medium text-amber-300 ring-1 ring-amber-500/30">
+                <span>Filter Tgl: {selectedDate}</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDate("")}
+                  className="rounded hover:text-white"
+                  title="Reset Filter Tanggal"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
           </div>
           <button
             type="button"
@@ -228,7 +244,7 @@ export function DashboardClient() {
         <>
           <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             <StatCard
-              label="🍽️ Total Menu / Total Produk"
+              label="🍽️ Total Menu / Produk"
               value={String(data.stats.totalProducts)}
               hint="Menu terdaftar"
               accent="amber"
@@ -240,7 +256,7 @@ export function DashboardClient() {
               accent="emerald"
             />
             <StatCard
-              label="🍽️ Menu Terjual"
+              label="🛒 Menu Terjual"
               value={String(data.stats.totalQtySold)}
               hint="Qty dari penjualan"
               accent="sky"
@@ -248,20 +264,20 @@ export function DashboardClient() {
             <StatCard
               label="📦 Pengeluaran Stok"
               value={String(data.stats.totalQtyStockOut)}
-              hint={`${data.stats.stockOutTransactionCount} pencatatan · stok berkurang`}
+              hint={`${data.stats.stockOutTransactionCount} pencatatan non-jual`}
               accent="default"
             />
             <StatCard
               label="📊 Total Barang Keluar"
               value={String(data.stats.totalQtyOut)}
-              hint="Terjual + pengeluaran stok (periode)"
+              hint="Terjual + non-jual"
               accent="amber"
             />
             <StatCard
-              label="⚠️ Stok Menipis"
+              label="⚠️ Stok Perlu Perhatian"
               value={String(data.stockByStatus.lowStock.length + data.stockByStatus.outOfStock.length)}
               hint={`${data.stockByStatus.lowStock.length} menipis · ${data.stockByStatus.outOfStock.length} habis`}
-              accent="amber"
+              accent={data.stockByStatus.lowStock.length + data.stockByStatus.outOfStock.length > 0 ? "rose" : "default"}
             />
           </section>
 

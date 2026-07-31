@@ -12,84 +12,120 @@ export async function POST(req: Request) {
 
     const method = paymentMethod === "cash" ? "cash" : "qris";
 
-    // Calculate total and validate items
+    const productIds = items.map((it: any) => Number(it.productId)).filter(Boolean);
+    const dbProducts = await prisma.product.findMany({
+      where: { id: { in: productIds } }
+    });
+    const productMap = new Map(dbProducts.map((p) => [p.id, p]));
+
+    type ValidatedLine = {
+      product: (typeof dbProducts)[number];
+      qty: number;
+      unitPrice: number;
+      subtotal: number;
+    };
+
     let totalAmount = 0;
-    const itemDetails = [];
+    const validatedItems: ValidatedLine[] = [];
 
     for (const item of items) {
       const productId = Number(item.productId);
       const qty = Number(item.qty);
-      
+
       if (qty <= 0) {
         return NextResponse.json({ error: "Jumlah item harus lebih dari 0" }, { status: 400 });
       }
 
-      // Get product info
-      const product = await prisma.product.findUnique({
-        where: { id: productId }
-      });
-      
+      const product = productMap.get(productId);
       if (!product) {
         return NextResponse.json({ error: `Produk dengan ID ${productId} tidak ditemukan` }, { status: 400 });
       }
-      
-      if (product.stock < qty) {
-        return NextResponse.json({ error: `Stok ${product.name} tidak cukup` }, { status: 400 });
+
+      if (!product.is_service && product.stock < qty) {
+        return NextResponse.json({ error: `Stok ${product.name} tidak cukup (tersisa ${product.stock})` }, { status: 400 });
       }
 
-      const subtotal = Number(product.sellPrice) * qty;
+      const unitPrice = Number(product.sellPrice);
+      const subtotal = unitPrice * qty;
       totalAmount += subtotal;
 
-      itemDetails.push({
-        id: product.id.toString(),
-        price: Number(product.sellPrice),
-        quantity: qty,
-        name: product.name,
+      validatedItems.push({
+        product,
+        qty,
+        unitPrice,
+        subtotal
       });
     }
 
-    // Generate order number
     const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    const isPaid = method === "cash";
+    const now = new Date();
 
-    // Create order in database
-    const order = await prisma.order.create({
-      data: {
-        orderNumber,
-        customerName,
-        customerPhone,
-        totalAmount,
-        paymentMethod: method,
-        paymentStatus: method === "cash" ? "paid" : "pending",
-      }
-    });
-
-    // Insert order items
-    for (const item of items) {
-      const productId = Number(item.productId);
-      const qty = Number(item.qty);
-      
-      const product = await prisma.product.findUnique({
-        where: { id: productId }
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Create Order
+      const order = await tx.order.create({
+        data: {
+          orderNumber,
+          customerName,
+          customerPhone,
+          totalAmount,
+          paymentMethod: method,
+          paymentStatus: isPaid ? "paid" : "pending",
+        }
       });
-      
-      if (product) {
-        const subtotal = Number(product.sellPrice) * qty;
 
-        await prisma.orderItem.create({
+      // 2. Create Order Items
+      for (const line of validatedItems) {
+        await tx.orderItem.create({
           data: {
             orderId: order.id,
-            productId,
-            productName: product.name,
-            qty,
-            unitPrice: Number(product.sellPrice),
-            subtotal
+            productId: line.product.id,
+            productName: line.product.name,
+            qty: line.qty,
+            unitPrice: line.unitPrice,
+            subtotal: line.subtotal
           }
         });
       }
-    }
+
+      // 3. If paid immediately (cash), create Sale and decrement stock
+      if (isPaid) {
+        const sale = await tx.sale.create({
+          data: {
+            occurredAt: now,
+            total: totalAmount
+          }
+        });
+
+        for (const line of validatedItems) {
+          await tx.saleItem.create({
+            data: {
+              saleId: sale.id,
+              productId: line.product.id,
+              name: line.product.name,
+              qty: line.qty,
+              unitPrice: line.unitPrice,
+              subtotal: line.subtotal
+            }
+          });
+
+          if (!line.product.is_service) {
+            await tx.product.update({
+              where: { id: line.product.id },
+              data: {
+                stock: { decrement: line.qty },
+                updatedAt: now
+              }
+            });
+          }
+        }
+      }
+
+      return order;
+    });
 
     return NextResponse.json({
-      orderId: order.id.toString(),
+      orderId: result.id.toString(),
       orderNumber,
       totalAmount,
     });
