@@ -20,6 +20,8 @@ export async function POST(req: Request) {
     const customerPhone = body.customerPhone != null ? String(body.customerPhone).trim() : null;
     const lines = parseLineItems(body.items, "Item pesanan wajib diisi");
 
+    const method = body.paymentMethod === "cash" ? "cash" : "qris";
+
     // Calculate total and validate items
     let totalAmount = 0;
     const orderItems: NewOrderItem[] = [];
@@ -61,7 +63,8 @@ export async function POST(req: Request) {
           customerName,
           customerPhone,
           totalAmount,
-          paymentStatus: 'pending'
+          paymentMethod: method,
+          paymentStatus: method === "cash" ? "paid" : "pending",
         }
       });
 

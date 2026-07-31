@@ -32,6 +32,7 @@ export async function POST(
       where: { id: orderId },
       data: {
         paymentStatus: 'paid',
+        paymentMethod: order.paymentMethod ?? 'qris',
         updatedAt: new Date()
       }
     });
