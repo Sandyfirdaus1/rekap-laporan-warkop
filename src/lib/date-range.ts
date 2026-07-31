@@ -1,33 +1,42 @@
 export type RangePreset = "today" | "week" | "month" | "year";
 
-/** Batas rentang waktu untuk filter (lokal server / deployment). Untuk WIB konsisten, set TZ di hosting atau gunakan offset tetap. */
-export function getRangeBounds(preset: RangePreset, now = new Date()) {
-  const end = new Date(now);
-  end.setHours(23, 59, 59, 999);
+export function getRangeBounds(preset: RangePreset, inputNow = new Date()) {
+  // Selalu gunakan WIB (+07:00) sebagai referensi waktu
+  const wibDateString = inputNow.toLocaleString("en-US", { timeZone: "Asia/Jakarta" });
+  const wibNow = new Date(wibDateString);
+  const y = wibNow.getFullYear();
+  const m = wibNow.getMonth();
+  const d = wibNow.getDate();
 
+  const toUTC = (year: number, month: number, date: number, h: number, min: number, s: number, ms: number) => {
+    // Bangun string ISO yang berzona +07:00 lalu parse ke UTC Date
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return new Date(`${year}-${pad(month + 1)}-${pad(date)}T${pad(h)}:${pad(min)}:${pad(s)}.${String(ms).padStart(3, '0')}+07:00`);
+  };
+
+  const end = toUTC(y, m, d, 23, 59, 59, 999);
   let start: Date;
 
   if (preset === "today") {
-    start = new Date(now);
-    start.setHours(0, 0, 0, 0);
+    start = toUTC(y, m, d, 0, 0, 0, 0);
   } else if (preset === "week") {
-    // Start from Monday (0 = Sunday, 1 = Monday, etc.)
-    const day = now.getDay();
-    const diff = day === 0 ? 6 : day - 1; // Days to subtract to get to Monday
-    start = new Date(now);
-    start.setDate(start.getDate() - diff);
-    start.setHours(0, 0, 0, 0);
-    // End on Sunday
-    end.setDate(start.getDate() + 6);
-    end.setHours(23, 59, 59, 999);
+    const day = wibNow.getDay();
+    const diff = day === 0 ? 6 : day - 1; // Start from Monday
+    const startWib = new Date(wibNow);
+    startWib.setDate(startWib.getDate() - diff);
+    start = toUTC(startWib.getFullYear(), startWib.getMonth(), startWib.getDate(), 0, 0, 0, 0);
+    // End on Sunday is already handled by end if we want up to current day, but usually "week" means full week.
+    // However, keeping end as end of today is safer, or end of week:
+    const endWib = new Date(startWib);
+    endWib.setDate(endWib.getDate() + 6);
+    end.setTime(toUTC(endWib.getFullYear(), endWib.getMonth(), endWib.getDate(), 23, 59, 59, 999).getTime());
   } else if (preset === "month") {
-    start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-    return { start, end: monthEnd };
+    start = toUTC(y, m, 1, 0, 0, 0, 0);
+    const lastDay = new Date(y, m + 1, 0).getDate();
+    end.setTime(toUTC(y, m, lastDay, 23, 59, 59, 999).getTime());
   } else {
-    start = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
-    const yearEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
-    return { start, end: yearEnd };
+    start = toUTC(y, 0, 1, 0, 0, 0, 0);
+    end.setTime(toUTC(y, 11, 31, 23, 59, 59, 999).getTime());
   }
 
   return { start, end };

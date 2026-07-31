@@ -43,10 +43,8 @@ export async function GET(req: Request) {
     let end: Date;
 
     if (startDate) {
-      start = new Date(startDate);
-      start.setHours(0, 0, 0, 0);
-      end = new Date(startDate);
-      end.setHours(23, 59, 59, 999);
+      start = new Date(`${startDate}T00:00:00+07:00`);
+      end = new Date(`${startDate}T23:59:59.999+07:00`);
     } else {
       if (!validPresets.includes(range)) {
         return NextResponse.json({ error: "range tidak valid" }, { status: 400 });
