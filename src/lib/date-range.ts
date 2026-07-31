@@ -29,6 +29,42 @@ export function getRangeBounds(preset: RangePreset, now = new Date()) {
   return { start, end };
 }
 
+const VALID_PRESETS: RangePreset[] = ["today", "week", "month"];
+
+export function startOfDay(value: string | Date) {
+  const d = new Date(value);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+export function endOfDay(value: string | Date) {
+  const d = new Date(value);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
+/**
+ * Rentang waktu dari query string: `startDate`/`endDate` bila ada, selain itu preset `range`.
+ * Mengembalikan `error` bila preset tidak dikenal.
+ */
+export function resolveRangeParams(
+  searchParams: URLSearchParams
+): { range: RangePreset; start: Date; end: Date } | { error: string } {
+  const range = (searchParams.get("range") ?? "today") as RangePreset;
+  const startDate = searchParams.get("startDate");
+  const endDate = searchParams.get("endDate");
+
+  if (startDate) {
+    return { range, start: startOfDay(startDate), end: endOfDay(endDate ?? startDate) };
+  }
+
+  if (!VALID_PRESETS.includes(range)) {
+    return { error: "range tidak valid" };
+  }
+
+  return { range, ...getRangeBounds(range) };
+}
+
 export function formatDayKey(d: Date) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -38,4 +74,46 @@ export function formatDayKey(d: Date) {
 
 export function formatHourKey(d: Date) {
   return `${formatDayKey(d)} ${String(d.getHours()).padStart(2, "0")}:00`;
+}
+
+export type ChartMode = "hour" | "day";
+
+/** Grafik dibuat per jam saat melihat satu hari, selain itu per tanggal. */
+export function resolveChartMode(preset: RangePreset, hasStartDate: boolean): ChartMode {
+  return hasStartDate || preset === "today" ? "hour" : "day";
+}
+
+/** Label bucket grafik untuk sebuah tanggal. */
+export function formatChartKey(mode: ChartMode, d: Date) {
+  return mode === "hour" ? formatHourKey(d) : formatDayKey(d);
+}
+
+/**
+ * Semua label bucket grafik dalam rentang, termasuk yang tanpa data.
+ * Mode jam berhenti di jam berjalan bila rentangnya hari ini, kecuali `fullDay`.
+ */
+export function buildChartLabels(
+  mode: ChartMode,
+  start: Date,
+  end: Date,
+  options: { fullDay?: boolean } = {},
+  now = new Date()
+) {
+  if (mode === "hour") {
+    const dayKey = formatDayKey(start);
+    const isToday = !options.fullDay && start.toDateString() === now.toDateString();
+    const maxHour = isToday ? now.getHours() : 23;
+    return Array.from(
+      { length: maxHour + 1 },
+      (_, h) => `${dayKey} ${String(h).padStart(2, "0")}:00`
+    );
+  }
+
+  const labels: string[] = [];
+  const cursor = new Date(start);
+  while (cursor <= end) {
+    labels.push(formatDayKey(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return labels;
 }

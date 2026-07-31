@@ -1,16 +1,9 @@
 "use client";
 
 import { Loader2, Plus, Receipt } from "lucide-react";
+import { QtyLineRows, type LineDraft, type ProductOption } from "@/components/QtyLineRows";
 
-export type ProductOption = {
-  id: string;
-  name: string;
-  unit: string;
-  stock: number;
-  sellPrice: number;
-};
-
-export type LineDraft = { productId: string; qty: string };
+export type { LineDraft, ProductOption };
 
 export function RecordSaleCard({
   products,
@@ -31,9 +24,6 @@ export function RecordSaleCard({
   onRemoveLine: (i: number) => void;
   onSubmit: (e: React.FormEvent) => void;
 }) {
-  const input =
-    "min-w-[120px] flex-1 rounded-xl border border-[var(--card-border)] bg-[#0f0e0c] px-3 py-2 text-sm text-[var(--foreground)] outline-none focus:ring-2 focus:ring-[var(--ring)]";
-
   return (
     <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)]/60 p-4 shadow-lg shadow-black/20 backdrop-blur-sm sm:p-5">
       <div className="flex items-center justify-between gap-2">
@@ -43,38 +33,13 @@ export function RecordSaleCard({
         </span>
       </div>
       <form onSubmit={onSubmit} className="mt-3 space-y-2">
-        {lines.map((line, i) => (
-          <div key={i} className="flex flex-wrap items-center gap-2">
-            <select
-              value={line.productId}
-              onChange={(e) => onSetLine(i, { productId: e.target.value })}
-              className={input}
-            >
-              <option value="">Pilih barang</option>
-              {products.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({p.stock} {p.unit})
-                </option>
-              ))}
-            </select>
-            <input
-              type="number"
-              min={1}
-              value={line.qty}
-              onChange={(e) => onSetLine(i, { qty: e.target.value })}
-              className="w-20 rounded-xl border border-[var(--card-border)] bg-[#0f0e0c] px-3 py-2 text-sm tabular-nums outline-none focus:ring-2 focus:ring-[var(--ring)]"
-            />
-            {lines.length > 1 && (
-              <button
-                type="button"
-                onClick={() => onRemoveLine(i)}
-                className="rounded-xl px-2 text-xs text-red-300 hover:bg-red-500/10"
-              >
-                Hapus
-              </button>
-            )}
-          </div>
-        ))}
+        <QtyLineRows
+          products={products}
+          lines={lines}
+          onSetLine={onSetLine}
+          onRemoveLine={onRemoveLine}
+          selectClassName="min-w-[120px] flex-1 rounded-xl border border-[var(--card-border)] bg-[#0f0e0c] px-3 py-2 text-sm text-[var(--foreground)] outline-none focus:ring-2 focus:ring-[var(--ring)]"
+        />
         <div className="flex flex-wrap gap-2 pt-1">
           <button
             type="button"

@@ -1,21 +1,16 @@
-import { NextRequest, NextResponse } from "next/server";
-import { jwtVerify } from "jose";
-import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
+import { verifyAuthToken } from "@/lib/auth";
+import { getAuthToken } from "@/lib/auth-cookie";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get("auth-token")?.value;
+    const token = await getAuthToken();
 
     if (!token) {
       return NextResponse.json({ user: null }, { status: 401 });
     }
 
-    const secret = new TextEncoder().encode(
-      process.env.JWT_SECRET || "your-secret-key-change-this-in-production"
-    );
-
-    const { payload } = await jwtVerify(token, secret);
+    const payload = await verifyAuthToken(token);
 
     return NextResponse.json({
       user: {

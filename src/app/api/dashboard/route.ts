@@ -1,14 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import {
-  formatDayKey,
-  formatHourKey,
-  getRangeBounds,
-  type RangePreset,
-} from "@/lib/date-range";
-import type { ProductDoc, SaleDoc, StockOutDoc } from "@/lib/types";
-
-const validPresets: RangePreset[] = ["today", "week", "month"];
+import { buildChartLabels, formatChartKey, resolveChartMode, resolveRangeParams } from "@/lib/date-range";
+import { fetchSalesWithPaidOrders } from "@/lib/sales-source";
+import { toProductSummary } from "@/lib/serialize";
+import { badRequest, serverError } from "@/lib/api-response";
 
 type Bucket = {
   revenue: number;
@@ -21,63 +16,23 @@ function emptyBucket(): Bucket {
   return { revenue: 0, transactions: 0, qtySold: 0, qtyStockOut: 0 };
 }
 
-function mapProduct(p: any) {
-  return {
-    id: p.id.toString(),
-    name: p.name,
-    unit: p.unit,
-    stock: p.stock,
-    minStock: p.minStock,
-    purchasePrice: p.purchasePrice ? Number(p.purchasePrice) : undefined,
-  };
+function sumQty(items: { qty: number }[]) {
+  return items.reduce((a, it) => a + it.qty, 0);
 }
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const range = (searchParams.get("range") ?? "today") as RangePreset;
-    const startDate = searchParams.get("startDate");
+    const resolved = resolveRangeParams(searchParams);
+    if ("error" in resolved) return badRequest(resolved.error);
+    const { range, start, end } = resolved;
+    const hasStartDate = Boolean(searchParams.get("startDate"));
 
-    let start: Date;
-    let end: Date;
-
-    if (startDate) {
-      start = new Date(startDate);
-      start.setHours(0, 0, 0, 0);
-      end = new Date(startDate);
-      end.setHours(23, 59, 59, 999);
-    } else {
-      if (!validPresets.includes(range)) {
-        return NextResponse.json({ error: "range tidak valid" }, { status: 400 });
-      }
-      const bounds = getRangeBounds(range);
-      start = bounds.start;
-      end = bounds.end;
-    }
-
-    const [products, sales, paidOrders, stockOuts] = await Promise.all([
-      prisma.product.findMany({
-        orderBy: { name: 'asc' }
-      }),
-      prisma.sale.findMany({
-        where: {
-          occurredAt: { gte: start, lte: end }
-        },
-        orderBy: { occurredAt: 'asc' },
-        include: { items: true }
-      }),
-      prisma.order.findMany({
-        where: {
-          paymentStatus: 'paid',
-          updatedAt: { gte: start, lte: end }
-        },
-        orderBy: { updatedAt: 'asc' },
-        include: { items: true }
-      }),
+    const [products, allSales, stockOuts] = await Promise.all([
+      prisma.product.findMany({ orderBy: { name: 'asc' } }),
+      fetchSalesWithPaidOrders(start, end),
       prisma.stockOut.findMany({
-        where: {
-          occurredAt: { gte: start, lte: end }
-        },
+        where: { occurredAt: { gte: start, lte: end } },
         orderBy: { occurredAt: 'asc' },
         include: { items: true }
       })
@@ -88,99 +43,34 @@ export async function GET(req: Request) {
     const lowStock = products.filter((p) => p.stock > 0 && p.stock <= p.minStock);
     const outOfStock = products.filter((p) => p.stock === 0);
 
-    type NormalizedSaleItem = {
-      productId: string;
-      name: string;
-      qty: number;
-      unitPrice: number;
-      subtotal: number;
-    };
-
-    type NormalizedSale = {
-      id: string;
-      occurredAt: Date;
-      total: number;
-      items: NormalizedSaleItem[];
-    };
-
-    const allSales: NormalizedSale[] = [
-      ...sales.map((s) => ({
-        id: `sale-${s.id}`,
-        occurredAt: s.occurredAt,
-        total: Number(s.total),
-        items: s.items.map((it) => ({
-          productId: it.productId.toString(),
-          name: it.name,
-          qty: it.qty,
-          unitPrice: Number(it.unitPrice),
-          subtotal: Number(it.subtotal),
-        })),
-      })),
-      ...paidOrders.map((o) => ({
-        id: `ord-${o.id}`,
-        occurredAt: o.updatedAt ?? o.createdAt ?? new Date(),
-        total: Number(o.totalAmount),
-        items: o.items.map((it) => ({
-          productId: it.productId.toString(),
-          name: it.productName,
-          qty: it.qty,
-          unitPrice: Number(it.unitPrice),
-          subtotal: Number(it.subtotal),
-        })),
-      })),
-    ];
-
     const totalRevenue = allSales.reduce((s, x) => s + x.total, 0);
     const transactionCount = allSales.length;
-
-    const totalQtySold = allSales.reduce(
-      (s, sale) => s + sale.items.reduce((a, it) => a + it.qty, 0),
-      0
-    );
-    const totalQtyStockOut = stockOuts.reduce(
-      (s, doc) => s + doc.items.reduce((a: number, it: any) => a + it.qty, 0),
-      0
-    );
+    const totalQtySold = allSales.reduce((s, sale) => s + sumQty(sale.items), 0);
+    const totalQtyStockOut = stockOuts.reduce((s, doc) => s + sumQty(doc.items), 0);
     const stockOutTransactionCount = stockOuts.length;
 
+    const mode = resolveChartMode(range, hasStartDate);
+    const labels = buildChartLabels(mode, start, end, { fullDay: hasStartDate });
     const chartMap = new Map<string, Bucket>();
-
-    if (startDate || range === "today") {
-      const dayKey = formatDayKey(start);
-      const isToday = !startDate && start.toDateString() === new Date().toDateString();
-      const maxHour = isToday ? new Date().getHours() : 23;
-      for (let h = 0; h <= maxHour; h++) {
-        const label = `${dayKey} ${String(h).padStart(2, "0")}:00`;
-        chartMap.set(label, emptyBucket());
-      }
-    } else {
-      // range === "week" or "month"
-      const cur = new Date(start);
-      while (cur <= end) {
-        chartMap.set(formatDayKey(cur), emptyBucket());
-        cur.setDate(cur.getDate() + 1);
-      }
+    for (const label of labels) {
+      chartMap.set(label, emptyBucket());
     }
 
     for (const sale of allSales) {
-      const d = new Date(sale.occurredAt);
-      const key = startDate || range === "today" ? formatHourKey(d) : formatDayKey(d);
+      const key = formatChartKey(mode, new Date(sale.occurredAt));
       const cur = chartMap.get(key) ?? emptyBucket();
       cur.revenue += sale.total;
       cur.transactions += 1;
-      cur.qtySold += sale.items.reduce((a, it) => a + it.qty, 0);
+      cur.qtySold += sumQty(sale.items);
       chartMap.set(key, cur);
     }
 
     for (const doc of stockOuts) {
-      const d = new Date(doc.occurredAt);
-      const key = startDate || range === "today" ? formatHourKey(d) : formatDayKey(d);
+      const key = formatChartKey(mode, new Date(doc.occurredAt));
       const cur = chartMap.get(key) ?? emptyBucket();
-      cur.qtyStockOut += doc.items.reduce((a: number, it: any) => a + it.qty, 0);
+      cur.qtyStockOut += sumQty(doc.items);
       chartMap.set(key, cur);
     }
-
-    const labels = Array.from(chartMap.keys());
 
     const chart = labels.map((label) => {
       const v = chartMap.get(label) ?? emptyBucket();
@@ -209,14 +99,13 @@ export async function GET(req: Request) {
         totalQtyOut: totalQtySold + totalQtyStockOut,
       },
       stockByStatus: {
-        available: available.map(mapProduct),
-        lowStock: lowStock.map(mapProduct),
-        outOfStock: outOfStock.map(mapProduct),
+        available: available.map(toProductSummary),
+        lowStock: lowStock.map(toProductSummary),
+        outOfStock: outOfStock.map(toProductSummary),
       },
       chart,
     });
   } catch (e) {
-    console.error(e);
-    return NextResponse.json({ error: "Gagal memuat dashboard" }, { status: 500 });
+    return serverError(e, "Gagal memuat dashboard");
   }
 }
