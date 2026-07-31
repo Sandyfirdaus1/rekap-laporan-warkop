@@ -228,37 +228,37 @@ export function DashboardClient() {
         <>
           <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             <StatCard
-              label="📦 Total Jenis Barang"
+              label="🍽️ Total Menu / Total Produk"
               value={String(data.stats.totalProducts)}
-              hint="SKU terdaftar"
+              hint="Menu terdaftar"
               accent="amber"
             />
             <StatCard
-              label="💰 Total Pemasukan"
+              label="💰 Total Pendapatan"
               value={idr(data.stats.totalRevenue)}
               hint={`${data.stats.transactionCount} transaksi jual`}
               accent="emerald"
             />
             <StatCard
-              label="🛒 Barang Terjual"
+              label="🍽️ Menu Terjual"
               value={String(data.stats.totalQtySold)}
               hint="Qty dari penjualan"
               accent="sky"
             />
             <StatCard
-              label="📤 Keluar (Non Jual)"
+              label="📦 Pengeluaran Stok"
               value={String(data.stats.totalQtyStockOut)}
               hint={`${data.stats.stockOutTransactionCount} pencatatan · stok berkurang`}
               accent="default"
             />
             <StatCard
-              label="📊 Total Unit Keluar"
+              label="📊 Total Barang Keluar"
               value={String(data.stats.totalQtyOut)}
-              hint="Terjual + non-jual (periode)"
+              hint="Terjual + pengeluaran stok (periode)"
               accent="amber"
             />
             <StatCard
-              label="⚠️ Perlu Restock / Stok Menipis"
+              label="⚠️ Stok Menipis"
               value={String(data.stockByStatus.lowStock.length + data.stockByStatus.outOfStock.length)}
               hint={`${data.stockByStatus.lowStock.length} menipis · ${data.stockByStatus.outOfStock.length} habis`}
               accent="amber"
