@@ -188,8 +188,7 @@ export async function GET(req: Request) {
     if (startDate || range === "today") {
       const startWib = getWibDate(start);
       const dayKey = formatDayKey(startWib);
-      const isToday = !startDate;
-      const maxHour = isToday ? getWibDate(new Date()).getHours() : 23;
+      const maxHour = 23;
       for (let h = 0; h <= maxHour; h++) {
         const label = `${dayKey} ${String(h).padStart(2, "0")}:00`;
         chartMap.set(label, emptyBucket());
