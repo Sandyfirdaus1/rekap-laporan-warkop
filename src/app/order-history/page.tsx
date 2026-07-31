@@ -96,6 +96,24 @@ export default function OrderHistoryPage() {
     }
   };
 
+  const getPaymentMethodBadge = (method: string | null) => {
+    if (method === "cash") {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-600">
+          Cash
+        </span>
+      );
+    }
+    if (method === "qris") {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-500/10 text-blue-600">
+          QRIS
+        </span>
+      );
+    }
+    return null;
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "paid":
@@ -188,11 +206,12 @@ export default function OrderHistoryPage() {
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <p className="font-mono text-sm font-medium text-[var(--foreground)]">
                       {order.orderNumber}
                     </p>
                     {getStatusBadge(order.paymentStatus)}
+                    {getPaymentMethodBadge(order.paymentMethod)}
                   </div>
                   {order.customerName && (
                     <p className="text-sm text-[var(--muted)]">
@@ -231,7 +250,7 @@ export default function OrderHistoryPage() {
                 </div>
               </div>
 
-              {order.paymentStatus === 'pending' && (
+              {order.paymentStatus === 'pending' && order.paymentMethod !== 'cash' && (
                 <div className="border-t border-[var(--card-border)] pt-3">
                   <button
                     onClick={() => handlePayment(order)}

@@ -4,11 +4,13 @@ import { prisma } from "@/lib/prisma";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { items, customerName, customerPhone } = body;
+    const { items, customerName, customerPhone, paymentMethod } = body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: "Item pesanan wajib diisi" }, { status: 400 });
     }
+
+    const method = paymentMethod === "cash" ? "cash" : "qris";
 
     // Calculate total and validate items
     let totalAmount = 0;
@@ -56,7 +58,8 @@ export async function POST(req: Request) {
         customerName,
         customerPhone,
         totalAmount,
-        paymentStatus: 'pending'
+        paymentMethod: method,
+        paymentStatus: method === "cash" ? "paid" : "pending",
       }
     });
 
