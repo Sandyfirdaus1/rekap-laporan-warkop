@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { ShoppingCart, CheckCircle, Clock, XCircle, Search, Filter, CreditCard } from "lucide-react";
+import { PageHeader } from "@/components/PageHeader";
 import { idr } from "@/lib/format";
 
 interface OrderItem {
@@ -173,13 +174,8 @@ export default function OrderHistoryPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-[var(--foreground)]">Riwayat Pesanan</h1>
-          <p className="text-sm text-[var(--muted)]">Daftar semua pesanan pelanggan</p>
-        </div>
-      </div>
+    <div className="mx-auto max-w-[1280px] space-y-6">
+      <PageHeader title="Riwayat Pesanan" description="Daftar semua pesanan pelanggan" />
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
@@ -190,7 +186,7 @@ export default function OrderHistoryPage() {
             placeholder="Cari nomor pesanan atau nama pelanggan..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[var(--card-border)] bg-[var(--card)] text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20"
+            className="input-field pl-10"
           />
         </div>
         <div className="flex items-center gap-2">
@@ -198,7 +194,7 @@ export default function OrderHistoryPage() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as "all" | "paid" | "pending")}
-            className="px-4 py-2.5 rounded-xl border border-[var(--card-border)] bg-[var(--card)] text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20"
+            className="input-field"
           >
             <option value="all">Semua Status</option>
             <option value="paid">Sudah Bayar</option>
@@ -220,7 +216,7 @@ export default function OrderHistoryPage() {
           {filteredOrders.map((order) => (
             <div
               key={order.id}
-              className="p-4 rounded-2xl border border-[var(--card-border)] bg-[var(--card)] space-y-4"
+              className="card-surface space-y-4 p-4"
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">

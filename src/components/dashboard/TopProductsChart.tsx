@@ -4,11 +4,12 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
+  LabelList,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
-  LabelList,
 } from "recharts";
 
 type TopProduct = {
@@ -17,40 +18,53 @@ type TopProduct = {
   qty: number;
 };
 
+const COLORS = ["#2d6a4f", "#40916c", "#52b788", "#74c69d", "#95d5b2"];
+
 export function TopProductsChart({ data }: { data: TopProduct[] }) {
+  if (data.length === 0) {
+    return (
+      <div className="flex h-[280px] items-center justify-center text-sm text-[var(--muted)]">
+        Belum ada data penjualan
+      </div>
+    );
+  }
+
   return (
-    <div className="h-[300px] w-full">
+    <div className="h-[280px] w-full">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart
           data={data}
           layout="vertical"
-          margin={{ top: 0, right: 30, left: 10, bottom: 0 }}
+          margin={{ top: 0, right: 36, left: 4, bottom: 0 }}
         >
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={true} vertical={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(107,124,114,0.12)" horizontal vertical={false} />
           <XAxis type="number" hide />
           <YAxis
             type="category"
             dataKey="name"
-            width={120}
+            width={110}
             axisLine={false}
             tickLine={false}
-            tick={{ fill: "#a8a29e", fontSize: 12 }}
+            tick={{ fill: "#6b7c72", fontSize: 12 }}
           />
           <Tooltip
-            cursor={{ fill: "rgba(255,255,255,0.05)" }}
+            cursor={{ fill: "rgba(45,106,79,0.06)" }}
             content={({ active, payload }) => {
               if (!active || !payload?.length) return null;
               const row = payload[0].payload as TopProduct;
               return (
-                <div className="rounded-xl border border-[var(--card-border)] bg-[#1a1814] px-3 py-2 shadow-xl">
-                  <p className="text-sm font-semibold text-[var(--foreground)]">{row.name}</p>
-                  <p className="text-xs text-amber-400">Terjual: {row.qty}</p>
+                <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 shadow-lg">
+                  <p className="text-sm font-semibold">{row.name}</p>
+                  <p className="text-xs text-[var(--accent)]">Terjual: {row.qty}</p>
                 </div>
               );
             }}
           />
-          <Bar dataKey="qty" fill="#f59e0b" radius={[0, 4, 4, 0]} barSize={24}>
-            <LabelList dataKey="qty" position="right" fill="#d6d3d1" fontSize={12} />
+          <Bar dataKey="qty" radius={[0, 6, 6, 0]} barSize={22}>
+            {data.map((_, i) => (
+              <Cell key={i} fill={COLORS[i % COLORS.length]} />
+            ))}
+            <LabelList dataKey="qty" position="right" fill="#6b7c72" fontSize={12} />
           </Bar>
         </BarChart>
       </ResponsiveContainer>

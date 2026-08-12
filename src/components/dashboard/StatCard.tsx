@@ -1,46 +1,54 @@
 import clsx from "clsx";
+import { LucideIcon } from "lucide-react";
+
+const iconStyles = {
+  green: "bg-emerald-50 text-emerald-600",
+  blue: "bg-sky-50 text-sky-600",
+  orange: "bg-orange-50 text-orange-600",
+  purple: "bg-violet-50 text-violet-600",
+  red: "bg-red-50 text-red-600",
+  gray: "bg-[var(--surface-hover)] text-[var(--muted)]",
+};
 
 export function StatCard({
   label,
   value,
   hint,
-  accent = "default",
+  icon: Icon,
+  iconColor = "green",
+  badge,
 }: {
   label: string;
   value: string;
   hint?: string;
-  accent?: "default" | "emerald" | "sky" | "amber" | "rose";
+  icon: LucideIcon;
+  iconColor?: keyof typeof iconStyles;
+  badge?: { text: string; positive?: boolean };
 }) {
-  const accentStyles = {
-    default: "border-[var(--card-border)] bg-[var(--card)]/60 text-[var(--foreground)]",
-    emerald: "border-emerald-500/25 bg-emerald-500/5 text-emerald-400 shadow-emerald-950/20",
-    sky: "border-sky-500/25 bg-sky-500/5 text-sky-400 shadow-sky-950/20",
-    amber: "border-amber-500/25 bg-amber-500/5 text-amber-400 shadow-amber-950/20",
-    rose: "border-rose-500/25 bg-rose-500/5 text-rose-400 shadow-rose-950/20",
-  };
-
-  const valueStyles = {
-    default: "text-[var(--foreground)]",
-    emerald: "text-emerald-300",
-    sky: "text-sky-300",
-    amber: "text-amber-300",
-    rose: "text-rose-300",
-  };
-
   return (
-    <div
-      className={clsx(
-        "group relative overflow-hidden rounded-2xl border p-4 shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl backdrop-blur-sm sm:p-5",
-        accentStyles[accent]
-      )}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-medium text-[var(--muted)] sm:text-sm">{label}</p>
+    <div className="card-surface flex flex-col p-5 transition-shadow hover:shadow-md">
+      <div className="flex items-start justify-between gap-3">
+        <div className={clsx("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", iconStyles[iconColor])}>
+          <Icon className="h-5 w-5" strokeWidth={2} />
+        </div>
+        {badge && (
+          <span
+            className={clsx(
+              "rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums",
+              badge.positive !== false
+                ? "bg-emerald-50 text-emerald-600"
+                : "bg-red-50 text-red-600"
+            )}
+          >
+            {badge.text}
+          </span>
+        )}
       </div>
-      <p className={clsx("mt-2 font-display text-2xl font-semibold tabular-nums sm:text-3xl", valueStyles[accent])}>
+      <p className="mt-4 text-sm text-[var(--muted)]">{label}</p>
+      <p className="mt-1 text-2xl font-bold tabular-nums tracking-tight text-[var(--foreground)]">
         {value}
       </p>
-      {hint ? <p className="mt-1 text-xs text-[var(--muted)] opacity-90">{hint}</p> : null}
+      {hint && <p className="mt-1 text-xs text-[var(--muted)]">{hint}</p>}
     </div>
   );
 }

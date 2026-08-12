@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Eye, EyeOff, Coffee } from "lucide-react";
 
 export default function RegisterPage() {
   const [username, setUsername] = useState("");
@@ -16,36 +17,29 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-
     if (password !== confirmPassword) {
       setError("Password tidak cocok");
       return;
     }
-
     if (password.length < 6) {
       setError("Password minimal 6 karakter");
       return;
     }
-
     setLoading(true);
-
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       });
-
       const data = await res.json();
-
       if (!res.ok) {
         setError(data.error || "Registrasi gagal");
         return;
       }
-
       router.push("/dashboard");
       router.refresh();
-    } catch (err) {
+    } catch {
       setError("Terjadi kesalahan. Coba lagi.");
     } finally {
       setLoading(false);
@@ -53,127 +47,95 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <span className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-[var(--accent)] to-[var(--accent-dim)] text-[#1a1206] shadow-lg shadow-amber-900/30 text-3xl">
-            ☕
-          </span>
-          <h1 className="mt-6 font-display text-2xl font-bold text-[var(--foreground)]">
-            Warkop Sudi Mampir
-          </h1>
-          <p className="mt-2 text-sm text-[var(--muted)]">Buat akun baru</p>
+    <div className="flex min-h-screen items-center justify-center px-4 py-12">
+      <div className="w-full max-w-[400px]">
+        <div className="mb-8 text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--accent-light)] text-[var(--accent)]">
+            <Coffee className="h-7 w-7" />
+          </div>
+          <h1 className="text-2xl font-bold">Buat Akun Baru</h1>
+          <p className="mt-1 text-sm text-[var(--muted)]">Warkop Sudi Mampir</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="username" className="block text-sm font-medium text-[var(--foreground)] mb-2">
-              Username
-            </label>
-            <input
-              id="username"
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="w-full rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-3 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-              placeholder="Masukkan username"
-              required
-            />
-          </div>
-
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-[var(--foreground)] mb-2">
-              Password
-            </label>
-            <div className="relative">
+        <div className="card-surface p-8">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label htmlFor="username" className="mb-1.5 block text-sm font-medium">
+                Username
+              </label>
               <input
-                id="password"
-                type={showPassword ? "text" : "password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-3 pr-12 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-                placeholder="Minimal 6 karakter"
+                id="username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="input-field"
                 required
               />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
-              >
-                {showPassword ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
-                    <circle cx="12" cy="12" r="3"/>
-                  </svg>
-                ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/>
-                    <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/>
-                    <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7c.9 0 1.78-.08 2.63-.22"/>
-                    <line x1="2" x2="22" y1="2" y2="22"/>
-                  </svg>
-                )}
-              </button>
             </div>
-          </div>
-
-          <div>
-            <label htmlFor="confirmPassword" className="block text-sm font-medium text-[var(--foreground)] mb-2">
-              Konfirmasi Password
-            </label>
-            <div className="relative">
-              <input
-                id="confirmPassword"
-                type={showConfirmPassword ? "text" : "password"}
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-3 pr-12 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-                placeholder="Ulangi password"
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
-              >
-                {showConfirmPassword ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
-                    <circle cx="12" cy="12" r="3"/>
-                  </svg>
-                ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/>
-                    <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/>
-                    <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7c.9 0 1.78-.08 2.63-.22"/>
-                    <line x1="2" x2="22" y1="2" y2="22"/>
-                  </svg>
-                )}
-              </button>
+            <div>
+              <label htmlFor="password" className="mb-1.5 block text-sm font-medium">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="input-field pr-11"
+                  placeholder="Minimal 6 karakter"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted)]"
+                >
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
+              </div>
             </div>
-          </div>
-
-          {error && (
-            <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-500">
-              {error}
+            <div>
+              <label htmlFor="confirmPassword" className="mb-1.5 block text-sm font-medium">
+                Konfirmasi Password
+              </label>
+              <div className="relative">
+                <input
+                  id="confirmPassword"
+                  type={showConfirmPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="input-field pr-11"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted)]"
+                >
+                  {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
+              </div>
             </div>
-          )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-xl bg-gradient-to-r from-[var(--accent)] to-[var(--accent-dim)] px-4 py-3 text-sm font-semibold text-[#1a1206] shadow-lg shadow-amber-900/30 hover:shadow-amber-900/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-          >
-            {loading ? "Loading..." : "Daftar"}
-          </button>
-        </form>
+            {error && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                {error}
+              </div>
+            )}
 
-        <p className="mt-6 text-center text-sm text-[var(--muted)]">
-          Sudah punya akun?{" "}
-          <a href="/login" className="font-medium text-[var(--accent)] hover:underline">
-            Login
-          </a>
-        </p>
+            <button type="submit" disabled={loading} className="btn-primary w-full py-3">
+              {loading ? "Loading..." : "Daftar"}
+            </button>
+          </form>
+
+          <p className="mt-6 text-center text-sm text-[var(--muted)]">
+            Sudah punya akun?{" "}
+            <a href="/login" className="font-semibold text-[var(--accent)] hover:underline">
+              Login
+            </a>
+          </p>
+        </div>
       </div>
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, MinusCircle, Pencil, Plus, Trash2, PackagePlus } from "lucide-react";
+import { PageHeader } from "@/components/PageHeader";
 import { idr } from "@/lib/format";
 
 type Product = {
@@ -197,28 +198,25 @@ export function InventoryClient() {
     }
   };
 
-  const inputClass =
-    "w-full rounded-xl border border-[var(--card-border)] bg-[#0f0e0c] px-3 py-2 text-sm text-[var(--foreground)] outline-none focus:ring-2 focus:ring-[var(--ring)]";
+  const inputClass = "input-field";
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8">
-      <header>
-        <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">Inventori</h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">
-          Tambah barang, catat barang keluar (stok otomatis berkurang), dan kelola daftar.
-        </p>
-      </header>
+    <div className="mx-auto max-w-[1280px] space-y-6">
+      <PageHeader
+        title="Inventori"
+        description="Tambah barang, catat barang keluar, dan kelola daftar produk."
+      />
 
       {error && (
-        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
           {error}
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
       <form
         onSubmit={createProduct}
-        className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)]/50 p-5 shadow-xl backdrop-blur-sm"
+        className="card-surface p-5"
       >
         <h2 className="mb-4 flex items-center gap-2 font-display text-lg font-semibold">
           <PackagePlus className="h-5 w-5 text-[var(--accent)]" />
@@ -279,7 +277,7 @@ export function InventoryClient() {
               id="is_service"
               checked={newP.is_service}
               onChange={(e) => setNewP((s) => ({ ...s, is_service: e.target.checked }))}
-              className="h-4 w-4 rounded border-[var(--card-border)] bg-[#0f0e0c] text-[var(--accent)] focus:ring-2 focus:ring-[var(--ring)]"
+              className="h-4 w-4 rounded border-[var(--card-border)] text-[var(--accent)]"
             />
             <label htmlFor="is_service" className="text-xs text-[var(--muted)]">
               Jasa Seduh (harga bisa diinput manual saat transaksi)
@@ -289,7 +287,7 @@ export function InventoryClient() {
         <button
           type="submit"
           disabled={newBusy}
-          className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[var(--accent)] to-[var(--accent-dim)] py-2.5 text-sm font-semibold text-[#1a1206] disabled:opacity-60"
+          className="btn-primary mt-4 inline-flex w-full items-center justify-center gap-2 py-2.5"
         >
           {newBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
           Simpan barang
@@ -298,7 +296,7 @@ export function InventoryClient() {
 
       <form
         onSubmit={submitStockOut}
-        className="rounded-2xl border border-orange-500/20 bg-[var(--card)]/50 p-5 shadow-xl backdrop-blur-sm"
+        className="card-surface border-orange-100 bg-orange-50/30 p-5"
       >
         <h2 className="mb-4 flex items-center gap-2 font-display text-lg font-semibold">
           <MinusCircle className="h-5 w-5 text-orange-400" />
@@ -328,13 +326,13 @@ export function InventoryClient() {
                 min={1}
                 value={line.qty}
                 onChange={(e) => setOutLine(i, { qty: e.target.value })}
-                className="w-20 rounded-xl border border-[var(--card-border)] bg-[#0f0e0c] px-3 py-2 text-sm tabular-nums outline-none focus:ring-2 focus:ring-[var(--ring)]"
+                className="input-field w-20 tabular-nums py-2"
               />
               {outLines.length > 1 && (
                 <button
                   type="button"
                   onClick={() => removeOutLine(i)}
-                  className="rounded-xl px-2 text-xs text-red-300 hover:bg-red-500/10"
+                  className="rounded-lg px-2 text-xs text-red-600 hover:bg-red-50"
                 >
                   Hapus
                 </button>
@@ -371,7 +369,7 @@ export function InventoryClient() {
           <button
             type="button"
             onClick={addOutLine}
-            className="inline-flex items-center gap-1 rounded-xl bg-white/5 px-3 py-2 text-xs font-medium ring-1 ring-[var(--card-border)] hover:bg-white/10"
+            className="btn-ghost inline-flex items-center gap-1 py-2 text-xs"
           >
             <Plus className="h-3.5 w-3.5" />
             Baris
@@ -389,7 +387,7 @@ export function InventoryClient() {
       </form>
       </div>
 
-      <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)]/40 shadow-xl backdrop-blur-sm">
+      <section className="card-surface overflow-hidden">
         <div className="flex items-center justify-between border-b border-[var(--card-border)] px-5 py-4">
           <h2 className="font-display text-lg font-semibold">Daftar barang</h2>
           {loading && <Loader2 className="h-5 w-5 animate-spin text-[var(--muted)]" />}
@@ -408,25 +406,25 @@ export function InventoryClient() {
             </thead>
             <tbody>
               {items.map((p) => (
-                <tr key={p.id} className="border-b border-[var(--card-border)]/60 hover:bg-white/[0.03]">
+                <tr key={p.id} className="border-b border-[var(--card-border)] hover:bg-[var(--surface-hover)]">
                   <td className="px-5 py-3 font-medium">
                     {p.name}
                     <span className="ml-2 text-xs text-[var(--muted)]">{p.unit}</span>
                   </td>
                   <td className="px-3 py-3">
                     {p.is_service ? (
-                      <span className="inline-flex items-center rounded-full bg-purple-500/10 px-2 py-0.5 text-xs font-medium text-purple-300">
+                      <span className="inline-flex items-center rounded-full bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-700">
                         Jasa Seduh
                       </span>
                     ) : (
-                      <span className="inline-flex items-center rounded-full bg-blue-500/10 px-2 py-0.5 text-xs font-medium text-blue-300">
+                      <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
                         Barang
                       </span>
                     )}
                   </td>
                   <td className="px-3 py-3 tabular-nums">{p.is_service ? '-' : p.stock}</td>
                   <td className="px-3 py-3 tabular-nums text-[var(--muted)]">{p.is_service ? '-' : p.minStock}</td>
-                  <td className="px-3 py-3 tabular-nums text-emerald-300/90">{idr(p.sellPrice)}</td>
+                  <td className="px-3 py-3 tabular-nums text-emerald-700">{idr(p.sellPrice)}</td>
                   <td className="px-5 py-3 text-right">
                     <button
                       type="button"
@@ -439,7 +437,7 @@ export function InventoryClient() {
                     <button
                       type="button"
                       onClick={() => void remove(p)}
-                      className="inline-flex rounded-lg p-2 text-red-300 hover:bg-red-500/10"
+                      className="inline-flex rounded-lg p-2 text-red-600 hover:bg-red-50"
                       aria-label="Hapus"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -458,12 +456,8 @@ export function InventoryClient() {
       </section>
 
       {editing && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center">
-          <div
-            className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-[var(--card-border)] bg-[#141210] p-6 shadow-2xl"
-            role="dialog"
-            aria-modal
-          >
+        <div className="modal-overlay fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center">
+          <div className="card-surface max-h-[90vh] w-full max-w-lg overflow-y-auto p-6" role="dialog" aria-modal>
             <h3 className="font-display text-xl font-semibold">Edit {editing.name}</h3>
             <form onSubmit={saveEdit} className="mt-4 grid gap-3 sm:grid-cols-2">
               <div className="sm:col-span-2">
@@ -519,7 +513,7 @@ export function InventoryClient() {
                   id="edit_is_service"
                   checked={editDraft.is_service}
                   onChange={(e) => setEditDraft((s) => ({ ...s, is_service: e.target.checked }))}
-                  className="h-4 w-4 rounded border-[var(--card-border)] bg-[#0f0e0c] text-[var(--accent)] focus:ring-2 focus:ring-[var(--ring)]"
+                  className="h-4 w-4 rounded border-[var(--card-border)] text-[var(--accent)]"
                 />
                 <label htmlFor="edit_is_service" className="text-xs text-[var(--muted)]">
                   Jasa Seduh (harga bisa diinput manual saat transaksi)
@@ -529,14 +523,14 @@ export function InventoryClient() {
                 <button
                   type="button"
                   onClick={() => setEditing(null)}
-                  className="flex-1 rounded-xl bg-white/5 py-2.5 text-sm font-medium ring-1 ring-[var(--card-border)]"
+                  className="btn-ghost flex-1 py-2.5"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={editBusy}
-                  className="flex-1 rounded-xl bg-[var(--accent)] py-2.5 text-sm font-semibold text-[#1a1206] disabled:opacity-60"
+                  className="btn-primary flex-1 py-2.5"
                 >
                   {editBusy ? "Menyimpan…" : "Simpan"}
                 </button>

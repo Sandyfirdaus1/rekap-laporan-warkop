@@ -1,42 +1,174 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0f0e0c;
-  --foreground: #f5f0e8;
-  --card: #1a1814;
-  --card-border: rgba(212, 175, 55, 0.12);
-  --muted: #9c8f7e;
-  --accent: #d4af37;
-  --accent-dim: #a67c2c;
-  --success: #4ade80;
-  --danger: #f87171;
-  --ring: rgba(212, 175, 55, 0.35);
+  --background: #f4f6f5;
+  --foreground: #1a2e22;
+  --card: #ffffff;
+  --card-border: #e5ebe7;
+  --muted: #6b7c72;
+  --accent: #2d6a4f;
+  --accent-light: #d8f3dc;
+  --accent-muted: #e8f5e9;
+  --accent-dim: #1b4332;
+  --success: #16a34a;
+  --danger: #dc2626;
+  --ring: rgba(45, 106, 79, 0.2);
+  --sidebar: #ffffff;
+  --input-bg: #f8faf9;
+  --surface-hover: #f0f4f2;
+  --shadow-color: rgba(26, 46, 34, 0.06);
+  --overlay: rgba(26, 46, 34, 0.35);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-dm-sans);
-  --font-display: var(--font-fraunces);
 }
 
 body {
-  background: radial-gradient(1200px 600px at 10% -10%, rgba(212, 175, 55, 0.08), transparent),
-    radial-gradient(800px 400px at 100% 0%, rgba(166, 124, 44, 0.06), transparent),
-    var(--background);
+  background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
 }
 
 ::selection {
-  background: rgba(212, 175, 55, 0.35);
-  color: #fff;
+  background: rgba(45, 106, 79, 0.18);
+  color: var(--foreground);
 }
 
-/* Recharts tooltip */
+/* Surfaces */
+.card-surface {
+  border-radius: 16px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  box-shadow: 0 1px 2px var(--shadow-color);
+}
+
+.input-field {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid var(--card-border);
+  background: var(--input-bg);
+  padding: 0.625rem 0.875rem;
+  font-size: 0.875rem;
+  color: var(--foreground);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.input-field:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+.input-field::placeholder {
+  color: var(--muted);
+}
+
+.btn-primary {
+  border-radius: 10px;
+  background: var(--accent);
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #fff;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-dim);
+}
+
+.btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn-ghost {
+  border-radius: 10px;
+  background: var(--card);
+  padding: 0.5rem 0.875rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--foreground);
+  border: 1px solid var(--card-border);
+  transition: background 0.15s;
+}
+
+.btn-ghost:hover {
+  background: var(--surface-hover);
+}
+
+.btn-outline {
+  border-radius: 10px;
+  background: var(--card);
+  padding: 0.5rem 0.875rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--muted);
+  border: 1px solid var(--card-border);
+  transition: all 0.15s;
+}
+
+.btn-outline:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: 10px;
+  padding: 0.625rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--muted);
+  transition: background 0.15s, color 0.15s;
+}
+
+.nav-link:hover {
+  background: var(--surface-hover);
+  color: var(--foreground);
+}
+
+.nav-link-active {
+  background: var(--accent-light);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.modal-overlay {
+  background: var(--overlay);
+  backdrop-filter: blur(4px);
+}
+
+.page-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--foreground);
+  letter-spacing: -0.02em;
+}
+
+.section-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Recharts */
 .recharts-default-tooltip {
   border-radius: 12px !important;
   border: 1px solid var(--card-border) !important;
-  background: #1a1814 !important;
+  background: var(--card) !important;
   color: var(--foreground) !important;
+  box-shadow: 0 4px 16px var(--shadow-color) !important;
+}
+
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: rgba(107, 124, 114, 0.15) !important;
 }

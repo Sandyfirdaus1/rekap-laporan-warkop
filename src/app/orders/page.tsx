@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { ShoppingCart, Plus, Minus, CreditCard, User, Phone, Coffee, Utensils } from "lucide-react";
+import { PageHeader } from "@/components/PageHeader";
 import { idr } from "@/lib/format";
 
 interface Product {
@@ -230,13 +231,8 @@ export default function OrdersPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-[var(--foreground)]">Pesanan Baru</h1>
-          <p className="text-sm text-[var(--muted)]">Input pesanan makanan dan minuman</p>
-        </div>
-      </div>
+    <div className="mx-auto max-w-[1280px] space-y-6">
+      <PageHeader title="Pesanan Baru" description="Input pesanan makanan dan minuman" />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Products Grid */}
@@ -256,7 +252,7 @@ export default function OrdersPage() {
               {products.map((product) => (
                 <div
                   key={product.id}
-                  className="p-4 rounded-2xl border border-[var(--card-border)] bg-[var(--card)] hover:border-[var(--accent)]/30 transition-colors"
+                  className="card-surface p-4 transition-shadow hover:shadow-md"
                 >
                   <div className="flex justify-between items-start mb-3">
                     <div>
@@ -279,7 +275,7 @@ export default function OrdersPage() {
                   <button
                     onClick={() => addToCart(product)}
                     disabled={product.stock === 0 && !product.is_service}
-                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-[#1a1206] hover:bg-[var(--accent)]/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="btn-primary w-full flex items-center justify-center gap-2 py-2.5"
                   >
                     <Plus className="h-4 w-4" />
                     {product.is_service ? "Input Harga" : "Tambah"}
@@ -297,7 +293,7 @@ export default function OrdersPage() {
             <h2 className="text-lg font-medium text-[var(--foreground)]">Keranjang</h2>
           </div>
 
-          <div className="p-4 rounded-2xl border border-[var(--card-border)] bg-[var(--card)] space-y-4">
+          <div className="card-surface space-y-4 p-4">
             {/* Customer Info */}
             <div className="space-y-3">
               <div className="flex items-center gap-2">

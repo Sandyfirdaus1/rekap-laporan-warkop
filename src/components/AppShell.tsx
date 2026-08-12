@@ -4,14 +4,101 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import clsx from "clsx";
-import { LogOut } from "lucide-react";
+import {
+  LayoutDashboard,
+  Package,
+  ShoppingBag,
+  History,
+  LogOut,
+  Coffee,
+} from "lucide-react";
 
-const IDLE_TIMEOUT = 10 * 60 * 1000; // 10 minutes in milliseconds
-const WARNING_TIMEOUT = 9 * 60 * 1000; // 9 minutes (1 minute before logout)
+const IDLE_TIMEOUT = 10 * 60 * 1000;
+const WARNING_TIMEOUT = 9 * 60 * 1000;
+
+const navItems = [
+  { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
+  { href: "/inventory", label: "Inventori", Icon: Package },
+  { href: "/orders", label: "Pesanan", Icon: ShoppingBag },
+  { href: "/order-history", label: "Riwayat Pesanan", Icon: History },
+];
+
+function BrandBlock({ compact }: { compact?: boolean }) {
+  return (
+    <div className={clsx("flex items-center gap-3", compact ? "" : "px-1")}>
+      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--accent-light)] text-[var(--accent)]">
+        <Coffee className="h-5 w-5" strokeWidth={2.2} />
+      </span>
+      <div>
+        <p className="text-base font-bold leading-tight text-[var(--foreground)]">Sudi Mampir</p>
+        {!compact && <p className="text-xs text-[var(--muted)]">Rekap harian</p>}
+      </div>
+    </div>
+  );
+}
+
+function NavLinks({
+  pathname,
+  onNavigate,
+}: {
+  pathname: string;
+  onNavigate?: () => void;
+}) {
+  return (
+    <nav className="flex flex-col gap-0.5">
+      <p className="section-label mb-2 px-3">Menu Utama</p>
+      {navItems.map(({ href, label, Icon }) => (
+        <a
+          key={href}
+          href={href}
+          onClick={onNavigate}
+          className={clsx("nav-link", pathname === href && "nav-link-active")}
+        >
+          <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={2} />
+          {label}
+        </a>
+      ))}
+    </nav>
+  );
+}
+
+function UserFooter({ onLogout }: { onLogout: () => void }) {
+  const [user, setUser] = useState<{ username: string } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.user) setUser(data.user);
+      });
+  }, []);
+
+  return (
+    <div className="border-t border-[var(--card-border)] pt-4">
+      <div className="flex items-center gap-3 rounded-xl px-2 py-1">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--accent-light)] text-sm font-bold text-[var(--accent)]">
+          {user?.username?.charAt(0).toUpperCase() ?? "A"}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-[var(--foreground)]">
+            {user?.username ?? "Admin"}
+          </p>
+          <p className="text-xs text-[var(--muted)]">Administrator</p>
+        </div>
+        <button
+          onClick={onLogout}
+          className="rounded-lg p-2 text-[var(--muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--accent)]"
+          title="Logout"
+        >
+          <LogOut className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [user, setUser] = useState<{ username: string } | null>(null);
   const [showWarning, setShowWarning] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
@@ -20,88 +107,51 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
   const warningTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const resetIdleTimer = useCallback(() => {
-    // Clear existing timers
+  const handleLogout = async () => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
+    setShowWarning(false);
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+  };
 
-    // Don't set timers on auth pages
+  const resetIdleTimer = useCallback(() => {
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
     if (isAuthPage) return;
 
-    // Set warning timer (1 minute before logout)
-    warningTimerRef.current = setTimeout(() => {
-      setShowWarning(true);
-    }, WARNING_TIMEOUT);
-
-    // Set logout timer
-    idleTimerRef.current = setTimeout(() => {
-      handleLogout();
-    }, IDLE_TIMEOUT);
+    warningTimerRef.current = setTimeout(() => setShowWarning(true), WARNING_TIMEOUT);
+    idleTimerRef.current = setTimeout(() => void handleLogout(), IDLE_TIMEOUT);
   }, [isAuthPage]);
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.user) {
-          setUser(data.user);
-        }
-      });
-  }, []);
-
-  // Setup idle detection
-  useEffect(() => {
     if (isAuthPage) return;
-
-    const activityEvents = ["mousedown", "mousemove", "keypress", "scroll", "touchstart", "click"];
-
-    const handleActivity = () => {
+    const events = ["mousedown", "mousemove", "keypress", "scroll", "touchstart", "click"];
+    const onActivity = () => {
       if (showWarning) setShowWarning(false);
       resetIdleTimer();
     };
-
-    activityEvents.forEach((event) => {
-      window.addEventListener(event, handleActivity);
-    });
-
-    // Start the initial timer
+    events.forEach((e) => window.addEventListener(e, onActivity));
     resetIdleTimer();
-
     return () => {
-      activityEvents.forEach((event) => {
-        window.removeEventListener(event, handleActivity);
-      });
+      events.forEach((e) => window.removeEventListener(e, onActivity));
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
       if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
     };
   }, [isAuthPage, resetIdleTimer, showWarning]);
 
-  const handleLogout = async () => {
-    // Clear timers before logout
-    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-    if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
-    setShowWarning(false);
-
-    await fetch("/api/auth/logout", { method: "POST" });
-    setUser(null);
-    router.push("/login");
-  };
-
   return (
-    <div className="min-h-screen md:flex">
-      {/* Idle timeout warning */}
+    <div className="min-h-screen bg-[var(--background)] md:flex">
       {showWarning && !isAuthPage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="mx-4 max-w-md rounded-2xl border border-[var(--card-border)] bg-[var(--card)] p-6 shadow-2xl">
+        <div className="modal-overlay fixed inset-0 z-50 flex items-center justify-center">
+          <div className="card-surface mx-4 max-w-md p-6">
             <div className="text-center">
-              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/20 text-amber-500">
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-600">
                 <LogOut className="h-6 w-6" />
               </div>
-              <h3 className="text-lg font-semibold text-[var(--foreground)]">
-                Sesi akan berakhir
-              </h3>
+              <h3 className="text-lg font-semibold">Sesi akan berakhir</h3>
               <p className="mt-2 text-sm text-[var(--muted)]">
-                Anda tidak aktif selama 9 menit. Anda akan otomatis logout dalam 1 menit karena keamanan.
+                Anda tidak aktif selama 9 menit. Logout otomatis dalam 1 menit.
               </p>
               <div className="mt-6 flex gap-3">
                 <button
@@ -109,14 +159,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     setShowWarning(false);
                     resetIdleTimer();
                   }}
-                  className="flex-1 rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-[#1a1206] hover:bg-[var(--accent)]/90 transition-colors"
+                  className="btn-primary flex-1 py-2.5"
                 >
                   Tetap Login
                 </button>
-                <button
-                  onClick={handleLogout}
-                  className="flex-1 rounded-xl bg-white/5 px-4 py-2.5 text-sm font-medium text-[var(--foreground)] ring-1 ring-[var(--card-border)] hover:bg-white/10 transition-colors"
-                >
+                <button onClick={() => void handleLogout()} className="btn-ghost flex-1 py-2.5">
                   Logout
                 </button>
               </div>
@@ -125,158 +172,36 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      {/* Desktop sidebar - fixed */}
       {!isAuthPage && (
-        <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-[var(--card-border)] bg-[var(--card)]/80 px-4 py-6 backdrop-blur-md md:flex">
-          <div className="mb-10 flex items-center gap-3 px-2">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[var(--accent)] to-[var(--accent-dim)] text-[#1a1206] shadow-lg shadow-amber-900/30">
-              ☕
-            </span>
-            <div>
-              <p className="font-display text-lg font-semibold leading-tight text-[var(--foreground)]">
-                Sudi Mampir
-              </p>
-              <p className="text-xs text-[var(--muted)]">Rekap harian</p>
-            </div>
+        <aside className="fixed inset-y-0 left-0 z-40 hidden w-[240px] flex-col border-r border-[var(--card-border)] bg-[var(--sidebar)] px-4 py-5 md:flex">
+          <div className="mb-8">
+            <BrandBlock />
           </div>
-          <nav className="flex flex-1 flex-col gap-1">
-            <a href="/dashboard" className={clsx(
-              "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
-              pathname === "/dashboard"
-                ? "bg-[var(--accent)]/15 text-[var(--accent)] ring-1 ring-[var(--ring)]"
-                : "text-[var(--muted)] hover:bg-white/5 hover:text-[var(--foreground)]"
-            )}>
-              Dashboard
-            </a>
-            <a href="/inventory" className={clsx(
-              "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
-              pathname === "/inventory"
-                ? "bg-[var(--accent)]/15 text-[var(--accent)] ring-1 ring-[var(--ring)]"
-                : "text-[var(--muted)] hover:bg-white/5 hover:text-[var(--foreground)]"
-            )}>
-              Inventori
-            </a>
-            <a href="/orders" className={clsx(
-              "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
-              pathname === "/orders"
-                ? "bg-[var(--accent)]/15 text-[var(--accent)] ring-1 ring-[var(--ring)]"
-                : "text-[var(--muted)] hover:bg-white/5 hover:text-[var(--foreground)]"
-            )}>
-              Pesanan
-            </a>
-            <a href="/order-history" className={clsx(
-              "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
-              pathname === "/order-history"
-                ? "bg-[var(--accent)]/15 text-[var(--accent)] ring-1 ring-[var(--ring)]"
-                : "text-[var(--muted)] hover:bg-white/5 hover:text-[var(--foreground)]"
-            )}>
-              Riwayat Pesanan
-            </a>
-          </nav>
-
-          <div className="border-t border-[var(--card-border)] pt-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-[var(--foreground)]">{user?.username}</p>
-                <p className="text-xs text-[var(--muted)]">Admin</p>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="rounded-lg p-2 text-[var(--muted)] hover:bg-white/5 hover:text-[var(--foreground)] transition-colors"
-                title="Logout"
-              >
-                <LogOut className="h-5 w-5" />
-              </button>
-            </div>
+          <div className="flex flex-1 flex-col">
+            <NavLinks pathname={pathname} />
           </div>
+          <UserFooter onLogout={() => void handleLogout()} />
         </aside>
       )}
 
-      {/* Mobile content area */}
-      <div className={`flex-1 flex flex-col ${!isAuthPage ? "md:pl-64" : ""}`}>
-        {/* Mobile hamburger - inline above content */}
+      <div className={`flex min-h-screen flex-1 flex-col ${!isAuthPage ? "md:pl-[240px]" : ""}`}>
         {!isAuthPage && (
-          <div className="md:hidden px-4 pt-4">
+          <div className="flex items-center justify-between border-b border-[var(--card-border)] bg-[var(--card)] px-4 py-3 md:hidden">
+            <BrandBlock compact />
             <Sidebar mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
           </div>
         )}
 
-        {/* Mobile sidebar - inline, pushes content when open */}
         {!isAuthPage && mobileOpen && (
-          <aside className="md:hidden w-full flex-shrink-0 flex-col border-r border-[var(--card-border)] bg-[#141210]/98 px-4 py-5">
-            <div className="mb-8 flex items-center gap-3 rounded-xl px-1 py-1">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[var(--accent)] to-[var(--accent-dim)] text-[#1a1206] shadow-lg shadow-amber-900/30">
-                ☕
-              </span>
-              <div>
-                <p className="font-display text-lg font-semibold leading-tight text-[var(--foreground)]">
-                  Sudi Mampir
-                </p>
-                <p className="text-xs text-[var(--muted)]">Rekap harian</p>
-              </div>
+          <div className="border-b border-[var(--card-border)] bg-[var(--card)] px-4 py-4 md:hidden">
+            <NavLinks pathname={pathname} onNavigate={() => setMobileOpen(false)} />
+            <div className="mt-4">
+              <UserFooter onLogout={() => void handleLogout()} />
             </div>
-            <nav className="flex flex-col gap-1">
-              <a href="/dashboard" onClick={() => setMobileOpen(false)} className={clsx(
-                "flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors",
-                pathname === "/dashboard"
-                  ? "bg-[var(--accent)]/15 text-[var(--accent)] ring-1 ring-[var(--ring)]"
-                  : "text-[var(--muted)] hover:bg-white/5 hover:text-[var(--foreground)]"
-              )}>
-                Dashboard
-              </a>
-              <a href="/inventory" onClick={() => setMobileOpen(false)} className={clsx(
-                "flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors",
-                pathname === "/inventory"
-                  ? "bg-[var(--accent)]/15 text-[var(--accent)] ring-1 ring-[var(--ring)]"
-                  : "text-[var(--muted)] hover:bg-white/5 hover:text-[var(--foreground)]"
-              )}>
-                Inventori
-              </a>
-              <a href="/orders" onClick={() => setMobileOpen(false)} className={clsx(
-                "flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors",
-                pathname === "/orders"
-                  ? "bg-[var(--accent)]/15 text-[var(--accent)] ring-1 ring-[var(--ring)]"
-                  : "text-[var(--muted)] hover:bg-white/5 hover:text-[var(--foreground)]"
-              )}>
-                Pesanan
-              </a>
-              <a href="/order-history" onClick={() => setMobileOpen(false)} className={clsx(
-                "flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors",
-                pathname === "/order-history"
-                  ? "bg-[var(--accent)]/15 text-[var(--accent)] ring-1 ring-[var(--ring)]"
-                  : "text-[var(--muted)] hover:bg-white/5 hover:text-[var(--foreground)]"
-              )}>
-                Riwayat Pesanan
-              </a>
-            </nav>
-
-            <div className="border-t border-[var(--card-border)] pt-4 mt-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-[var(--foreground)]">{user?.username}</p>
-                  <p className="text-xs text-[var(--muted)]">Admin</p>
-                </div>
-                <button
-                  onClick={() => {
-                    handleLogout();
-                    setMobileOpen(false);
-                  }}
-                  className="rounded-lg p-2 text-[var(--muted)] hover:bg-white/5 hover:text-[var(--foreground)] transition-colors"
-                  title="Logout"
-                >
-                  <LogOut className="h-5 w-5" />
-                </button>
-              </div>
-            </div>
-          </aside>
+          </div>
         )}
 
-        <main className="flex-1 px-4 py-4 sm:px-6 lg:px-10 md:py-8">{children}</main>
-        {!isAuthPage && (
-          <footer className="border-t border-[var(--card-border)] px-6 py-4 text-center text-xs text-[var(--muted)]">
-            Warkop Sudi Mampir · Rekap internal
-          </footer>
-        )}
+        <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
       </div>
     </div>
   );

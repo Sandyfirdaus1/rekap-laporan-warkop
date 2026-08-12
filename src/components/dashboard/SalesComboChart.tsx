@@ -2,10 +2,9 @@
 
 import {
   Bar,
+  BarChart,
   CartesianGrid,
-  ComposedChart,
   Legend,
-  Line,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -22,10 +21,8 @@ export type ChartRow = {
 function shortLabel(full: string, mode: "today" | "week" | "month" | "year") {
   if (mode === "today") {
     const parts = full.split(" ");
-    const hm = parts[parts.length - 1] ?? full;
-    return hm;
+    return parts[parts.length - 1] ?? full;
   }
-
   if (!full) return "";
 
   const parts = full.split("-").map(Number);
@@ -36,22 +33,22 @@ function shortLabel(full: string, mode: "today" | "week" | "month" | "year") {
       const days = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
       return `${days[date.getDay()]} ${d}`;
     }
-    if (mode === "month") {
-      return `${d}`;
-    }
+    if (mode === "month") return `${d}`;
   }
 
   if (parts.length === 2) {
-    const [, m] = parts;
+    const [, mo] = parts;
     const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-    return months[m - 1] ?? full;
+    return months[mo - 1] ?? full;
   }
 
   return full;
 }
 
-const legendNames: Record<string, string> = {
-  revenue: "Pendapatan (IDR)",
+const fmtRevenue = (v: number) => {
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}jt`;
+  if (v >= 1000) return `${(v / 1000).toFixed(0)}k`;
+  return String(v);
 };
 
 export function SalesComboChart({
@@ -61,69 +58,64 @@ export function SalesComboChart({
   data: ChartRow[];
   mode: "today" | "week" | "month" | "year";
 }) {
-  const axisRevenue = (v: number) => {
-    if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}jt`;
-    if (v >= 1000) return `${(v / 1000).toFixed(0)}k`;
-    return String(v);
-  };
+  const slantedLabels = mode === "today";
+  const showAllLabels = mode === "today" || mode === "month";
 
   return (
-    <div className="space-y-3">
-      <div className="h-[min(400px,55vh)] w-full min-h-[280px]">
-        <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 4 }}>
-            <defs>
-              <linearGradient id="barTx" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#fbbf24" stopOpacity={0.4} />
-              <stop offset="100%" stopColor="#fbbf24" stopOpacity={0.05} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(212,175,55,0.1)" vertical={false} />
+    <div className={`w-full min-h-[260px] ${slantedLabels ? "h-[360px]" : showAllLabels ? "h-[340px]" : "h-[320px]"}`}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart
+          data={data}
+          margin={{ top: 8, right: 8, left: -8, bottom: slantedLabels ? 28 : showAllLabels ? 8 : 0 }}
+          barCategoryGap={mode === "month" ? "8%" : "20%"}
+        >
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(107,124,114,0.12)" vertical={false} />
           <XAxis
             dataKey="label"
-            tick={{ fill: "#9c8f7e", fontSize: 10 }}
+            tick={{ fill: "#6b7c72", fontSize: mode === "month" ? 9 : slantedLabels ? 10 : 11 }}
             tickFormatter={(v) => shortLabel(String(v), mode)}
-            interval="preserveStartEnd"
-            minTickGap={12}
+            interval={showAllLabels ? 0 : "preserveStartEnd"}
+            minTickGap={showAllLabels ? 0 : 16}
+            angle={slantedLabels ? -45 : 0}
+            textAnchor={slantedLabels ? "end" : "middle"}
+            height={slantedLabels ? 56 : mode === "month" ? 36 : 30}
+            axisLine={false}
+            tickLine={false}
           />
           <YAxis
-            yAxisId="rev"
-            tick={{ fill: "#fbbf24", fontSize: 10 }}
-            tickFormatter={axisRevenue}
-            width={44}
+            tick={{ fill: "#6b7c72", fontSize: 11 }}
+            tickFormatter={fmtRevenue}
+            width={48}
+            axisLine={false}
+            tickLine={false}
           />
-            <Tooltip
-              content={({ active, payload, label }) => {
-                if (!active || !payload?.length) return null;
-                const row = payload[0].payload as ChartRow;
-                return (
-                  <div className="max-w-[240px] rounded-xl border border-[var(--card-border)] bg-[#1a1814] px-3 py-2 shadow-xl">
-                    <p className="text-xs text-[var(--muted)]">{label}</p>
-                    <p className="text-sm font-semibold text-[var(--accent)]">
-                      Pendapatan: {idr(row.revenue)}
-                    </p>
-                  </div>
-                );
-              }}
-            />
-            <Legend
-              wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
-              formatter={(value) => legendNames[value] ?? value}
-            />
-
-          <Line
-            yAxisId="rev"
-            type="monotone"
+          <Tooltip
+            content={({ active, payload, label }) => {
+              if (!active || !payload?.length) return null;
+              const row = payload[0].payload as ChartRow;
+              return (
+                <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] px-4 py-3 shadow-lg">
+                  <p className="mb-1 text-xs text-[var(--muted)]">{label}</p>
+                  <p className="text-sm font-semibold text-[#2d6a4f]">
+                    Pendapatan: {idr(row.revenue)}
+                  </p>
+                </div>
+              );
+            }}
+          />
+          <Legend
+            wrapperStyle={{ fontSize: 12, paddingTop: 12 }}
+            formatter={() => "Pendapatan"}
+          />
+          <Bar
             dataKey="revenue"
             name="revenue"
-            stroke="#fbbf24"
-            strokeWidth={3}
-            dot={{ r: 3, fill: "#fbbf24", strokeWidth: 0 }}
-            activeDot={{ r: 5 }}
+            fill="#2d6a4f"
+            radius={[4, 4, 0, 0]}
+            maxBarSize={mode === "month" ? 14 : 40}
           />
-        </ComposedChart>
-        </ResponsiveContainer>
-      </div>
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 }

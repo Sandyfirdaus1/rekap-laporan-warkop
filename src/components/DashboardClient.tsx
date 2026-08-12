@@ -3,16 +3,17 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   Download,
-  Layers,
   Loader2,
   Package,
-  PackageMinus,
   ShoppingBag,
-  TrendingUp,
   Wallet,
   FileText,
+  CalendarDays,
+  AlertTriangle,
+  UtensilsCrossed,
 } from "lucide-react";
 import clsx from "clsx";
+import { PageHeader } from "@/components/PageHeader";
 import { SalesComboChart } from "@/components/dashboard/SalesComboChart";
 import { TopProductsChart } from "@/components/dashboard/TopProductsChart";
 import { PaymentMethodsChart } from "@/components/dashboard/PaymentMethodsChart";
@@ -277,95 +278,51 @@ export function DashboardClient() {
   ];
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 pb-8">
-      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h1 className="font-display text-3xl font-semibold tracking-tight text-[var(--foreground)] sm:text-4xl">
-            Dashboard
-          </h1>
-          <p className="mt-1 max-w-xl text-sm text-[var(--muted)]">
-            Penjualan, barang keluar (inventori), pemasukan, dan status stok.
-          </p>
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-          <div className="flex flex-wrap items-center gap-2">
-            {rangeTabs.map((t) => {
-              const isHariIni = t.id === "today" && selectedDate === getTodayWIB();
-              const isActive = isHariIni || (range === t.id && !selectedDate);
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  title={t.desc}
-                  onClick={() => {
-                    if (t.id === "today") {
-                      setSelectedDate(getTodayWIB());
-                    } else {
-                      setSelectedDate("");
-                    }
-                    setRange(t.id);
-                  }}
-                  className={clsx(
-                    "rounded-xl px-4 py-2 text-sm font-medium transition-all",
-                    isActive
-                      ? "bg-[var(--accent)] text-[#1a1206] shadow-md shadow-amber-900/25 font-semibold"
-                      : "bg-white/5 text-[var(--muted)] ring-1 ring-[var(--card-border)] hover:bg-white/10"
-                  )}
-                >
-                  {t.label}
-                </button>
-              );
-            })}
-            {selectedDate && selectedDate !== getTodayWIB() && (
-              <div className="flex items-center gap-1.5 rounded-xl bg-amber-500/15 px-3 py-2 text-xs font-medium text-amber-300 ring-1 ring-amber-500/30">
-                <span>Filter Tgl: {selectedDate}</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedDate("");
-                    setRange("week"); // Default back to something if clearing custom date? Or just keep current range.
-                    // Actually, let's just reset to today:
-                    setSelectedDate(getTodayWIB());
-                    setRange("today");
-                  }}
-                  className="rounded hover:text-white"
-                  title="Reset Filter Tanggal"
-                >
-                  ✕
-                </button>
-              </div>
-            )}
-            <div className="h-6 w-px bg-[var(--card-border)] mx-1 hidden sm:block"></div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => void exportExcel()}
-                disabled={!data || loading}
-                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-green-500/10 px-3 py-1.5 text-xs font-medium text-green-500 ring-1 ring-green-500/30 transition-colors hover:bg-green-500/20 disabled:opacity-50"
-                title="Export Excel"
-              >
-                <Download className="h-3.5 w-3.5" />
-                Excel
-              </button>
-              <button
-                type="button"
-                onClick={() => void exportPdf()}
-                disabled={!data || loading}
-                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-500 ring-1 ring-red-500/30 transition-colors hover:bg-red-500/20 disabled:opacity-50"
-                title="Export PDF"
-              >
-                <FileText className="h-3.5 w-3.5" />
-                PDF
-              </button>
+    <div className="mx-auto max-w-[1280px] space-y-6 pb-8">
+      <PageHeader
+        title="Dashboard"
+        actions={
+          <>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {rangeTabs.map((t) => {
+                const isHariIni = t.id === "today" && selectedDate === getTodayWIB();
+                const isActive = isHariIni || (range === t.id && !selectedDate);
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    title={t.desc}
+                    onClick={() => {
+                      if (t.id === "today") setSelectedDate(getTodayWIB());
+                      else setSelectedDate("");
+                      setRange(t.id);
+                    }}
+                    className={clsx(
+                      "rounded-lg px-3 py-2 text-sm font-medium transition-all",
+                      isActive
+                        ? "bg-[var(--accent)] text-white"
+                        : "btn-outline py-2"
+                    )}
+                  >
+                    {t.label}
+                  </button>
+                );
+              })}
             </div>
-          </div>
-        </div>
-      </header>
+            <button type="button" onClick={() => void exportExcel()} disabled={!data || loading} className="btn-outline inline-flex items-center gap-1.5">
+              <Download className="h-3.5 w-3.5" />
+              Excel
+            </button>
+            <button type="button" onClick={() => void exportPdf()} disabled={!data || loading} className="btn-outline inline-flex items-center gap-1.5">
+              <FileText className="h-3.5 w-3.5" />
+              PDF
+            </button>
+          </>
+        }
+      />
 
       {error && (
-        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-          {error}
-        </div>
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
       )}
 
       {loading && !data ? (
@@ -375,80 +332,74 @@ export function DashboardClient() {
         </div>
       ) : data ? (
         <>
-          <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          {/* Stat cards — 4 kolom seperti referensi */}
+          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard
-              label="🍽️ Total Menu / Produk"
-              value={String(data.stats.totalProducts)}
-              hint="Menu terdaftar"
-              accent="amber"
-            />
-            <StatCard
-              label="💰 Total Pendapatan"
+              label="Total Pendapatan"
               value={idr(data.stats.totalRevenue)}
-              hint={`${data.stats.transactionCount} transaksi jual`}
-              accent="emerald"
+              hint={`${data.stats.transactionCount} transaksi`}
+              icon={Wallet}
+              iconColor="green"
             />
             <StatCard
-              label="🛒 Menu Terjual"
+              label="Menu Terjual"
               value={String(data.stats.totalQtySold)}
-              hint="Qty dari penjualan"
-              accent="sky"
+              hint="Qty penjualan"
+              icon={ShoppingBag}
+              iconColor="blue"
             />
             <StatCard
-              label="📦 Pengeluaran Stok"
-              value={String(data.stats.totalQtyStockOut)}
-              hint={`${data.stats.stockOutTransactionCount} pencatatan non-jual`}
-              accent="default"
+              label="Total Produk"
+              value={String(data.stats.totalProducts)}
+              hint={`${data.stats.availableProducts} tersedia`}
+              icon={UtensilsCrossed}
+              iconColor="orange"
             />
             <StatCard
-              label="📊 Total Barang Keluar"
-              value={String(data.stats.totalQtyOut)}
-              hint="Terjual + non-jual"
-              accent="amber"
-            />
-            <StatCard
-              label="⚠️ Stok Perlu Perhatian"
+              label="Stok Perlu Perhatian"
               value={String(data.stockByStatus.lowStock.length + data.stockByStatus.outOfStock.length)}
               hint={`${data.stockByStatus.lowStock.length} menipis · ${data.stockByStatus.outOfStock.length} habis`}
-              accent={data.stockByStatus.lowStock.length + data.stockByStatus.outOfStock.length > 0 ? "rose" : "default"}
+              icon={AlertTriangle}
+              iconColor={
+                data.stockByStatus.lowStock.length + data.stockByStatus.outOfStock.length > 0
+                  ? "red"
+                  : "gray"
+              }
             />
           </section>
 
-          <section className="flex flex-col gap-6 mt-8">
-            <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)]/50 p-4 shadow-xl backdrop-blur-sm sm:p-5">
-              <h2 className="font-display text-lg font-semibold mb-4 flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-[var(--accent)]" />
-                Grafik Penjualan
-              </h2>
-              <SalesComboChart data={data.chart} mode={range} />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)]/50 p-4 shadow-xl backdrop-blur-sm sm:p-5">
-                <h2 className="font-display text-lg font-semibold mb-4 flex items-center gap-2">
-                  <Package className="h-5 w-5 text-amber-500" />
-                  Menu Terlaris
-                </h2>
-                <TopProductsChart data={data.topProducts} />
+          {/* Grafik utama */}
+          <section className="card-surface p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-semibold">Penjualan</h2>
+                <p className="text-xs text-[var(--muted)]">Total pendapatan per periode</p>
               </div>
-
-              <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card)]/50 p-4 shadow-xl backdrop-blur-sm sm:p-5">
-                <h2 className="font-display text-lg font-semibold mb-4 flex items-center gap-2">
-                  <Wallet className="h-5 w-5 text-emerald-500" />
-                  Metode Pembayaran
-                </h2>
-                <PaymentMethodsChart data={data.paymentMethods} />
-              </div>
+              <CalendarDays className="h-5 w-5 text-[var(--muted)]" />
             </div>
+            <SalesComboChart data={data.chart} mode={range} />
+          </section>
 
-            <div>
-              <StockByStatusPanel
-                available={data.stockByStatus.available}
-                lowStock={data.stockByStatus.lowStock}
-                outOfStock={data.stockByStatus.outOfStock}
-              />
+          {/* Baris bawah — donut + menu terlaris */}
+          <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div className="card-surface p-5">
+              <h2 className="mb-1 text-base font-semibold">Metode Pembayaran</h2>
+              <p className="mb-4 text-xs text-[var(--muted)]">Distribusi cash vs QRIS</p>
+              <PaymentMethodsChart data={data.paymentMethods} />
             </div>
-            
+            <div className="card-surface p-5">
+              <h2 className="mb-1 text-base font-semibold">Menu Terlaris</h2>
+              <p className="mb-4 text-xs text-[var(--muted)]">Produk dengan penjualan tertinggi</p>
+              <TopProductsChart data={data.topProducts} />
+            </div>
+          </section>
+
+          <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <StockByStatusPanel
+              available={data.stockByStatus.available}
+              lowStock={data.stockByStatus.lowStock}
+              outOfStock={data.stockByStatus.outOfStock}
+            />
             <SalesHistory sales={sales} selectedDate={selectedDate} onDateChange={setSelectedDate} />
           </section>
         </>
